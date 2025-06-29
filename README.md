@@ -347,9 +347,43 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## ⚠️ Disclaimer
+## ⚠️ Important Disclaimer
 
-This software is for educational and research purposes. Trading involves substantial risk of loss. Past performance does not guarantee future results. Use at your own risk and never trade with money you cannot afford to lose.
+**TRADING INVOLVES SUBSTANTIAL RISK OF LOSS**
+
+This software is provided for **educational and research purposes only**. By using ZergTrader, you acknowledge and agree to the following:
+
+### Financial Risk Warning
+- **Past performance does not guarantee future results**
+- **All trading involves substantial risk of loss**
+- **You may lose some or all of your invested capital**
+- **Never trade with money you cannot afford to lose**
+- **Algorithmic trading can amplify both gains and losses**
+
+### Software Limitations
+- This software is provided "AS IS" without any warranties
+- No guarantee of profitability or performance
+- Market conditions can change rapidly and unpredictably
+- Technical failures may result in unintended trades or losses
+- The software may contain bugs or errors that could affect trading decisions
+
+### Legal and Regulatory
+- **You are responsible for compliance with all applicable laws and regulations**
+- **Different jurisdictions may have restrictions on algorithmic trading**
+- **Consult with financial and legal advisors before using this software for live trading**
+- **The authors and contributors are not licensed financial advisors**
+
+### Recommendation
+- **Always test thoroughly with paper trading before using real money**
+- **Start with small position sizes to understand system behavior**
+- **Monitor the system closely, especially during initial deployment**
+- **Have manual override capabilities in place**
+- **Maintain adequate risk management controls**
+
+### No Investment Advice
+This software and its documentation do not constitute investment advice, financial advice, trading advice, or any other sort of advice. The information provided is for educational purposes only.
+
+**USE AT YOUR OWN RISK. THE AUTHORS AND CONTRIBUTORS ASSUME NO LIABILITY FOR ANY FINANCIAL LOSSES RESULTING FROM THE USE OF THIS SOFTWARE.**
 
 ## 📞 Support
 
