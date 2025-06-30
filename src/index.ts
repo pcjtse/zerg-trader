@@ -17,6 +17,9 @@ import { MeanReversionAgent } from './agents/technical/MeanReversionAgent';
 import { ValuationAgent } from './agents/fundamental/ValuationAgent';
 import { DecisionFusionAgent } from './agents/fusion/DecisionFusionAgent';
 
+// Import monitoring
+import { monitoringService, TradingMetrics, HealthChecks } from './monitoring';
+
 // Import types
 import { AgentConfig, Portfolio, Signal } from './types';
 
@@ -32,6 +35,8 @@ class ZergTrader {
   private portfolioManager!: PortfolioManager;
   private riskManager!: RiskManager;
   private backtestController!: BacktestController;
+  private tradingMetrics!: TradingMetrics;
+  private healthChecks!: HealthChecks;
   private isRunning: boolean = false;
 
   constructor() {
@@ -95,6 +100,21 @@ class ZergTrader {
 
     // Initialize backtest controller
     this.backtestController = new BacktestController();
+
+    // Initialize monitoring
+    this.tradingMetrics = new TradingMetrics(monitoringService);
+    this.healthChecks = new HealthChecks(
+      this.agentManager,
+      this.dataManager,
+      this.portfolioManager,
+      this.riskManager
+    );
+
+    // Register health checks
+    this.setupHealthChecks();
+
+    // Setup monitoring event handlers
+    this.setupMonitoringEvents();
 
     // Create and register agents
     this.createAgents();
@@ -176,24 +196,110 @@ class ZergTrader {
     console.log(`Registered ${this.agentManager.getAllAgents().length} agents`);
   }
 
+  private setupHealthChecks(): void {
+    monitoringService.registerHealthCheck('agents', () => this.healthChecks.checkAgentManager());
+    monitoringService.registerHealthCheck('data', () => this.healthChecks.checkDataManager());
+    monitoringService.registerHealthCheck('portfolio', () => this.healthChecks.checkPortfolioManager());
+    monitoringService.registerHealthCheck('risk', () => this.healthChecks.checkRiskManager());
+    monitoringService.registerHealthCheck('system', () => this.healthChecks.checkSystemResources());
+    monitoringService.registerHealthCheck('database', () => this.healthChecks.checkDatabase());
+    monitoringService.registerHealthCheck('external-apis', () => this.healthChecks.checkExternalAPIs());
+  }
+
+  private setupMonitoringEvents(): void {
+    monitoringService.on('alertCreated', (alert) => {
+      console.log(`Alert created [${alert.severity}]: ${alert.message}`);
+      
+      this.broadcastToClients({
+        type: 'alert',
+        data: alert
+      });
+    });
+
+    monitoringService.on('alertResolved', (alert) => {
+      console.log(`Alert resolved: ${alert.id}`);
+      
+      this.broadcastToClients({
+        type: 'alertResolved',
+        data: alert
+      });
+    });
+
+    monitoringService.on('metricRecorded', (metric) => {
+      if (metric.name.includes('error') || metric.name.includes('alert')) {
+        this.broadcastToClients({
+          type: 'metric',
+          data: metric
+        });
+      }
+    });
+  }
+
   private setupRoutes(): void {
     this.app.use(express.json());
     this.app.use(express.static('public'));
 
+    // Add monitoring middleware
+    this.app.use((req, res, next) => {
+      const start = Date.now();
+      
+      res.on('finish', () => {
+        const duration = Date.now() - start;
+        this.tradingMetrics.recordApiCall(
+          req.path,
+          req.method,
+          res.statusCode,
+          duration
+        );
+      });
+      
+      next();
+    });
+
     // Health check
-    this.app.get('/health', (req, res) => {
-      const health = {
-        status: this.isRunning ? 'running' : 'stopped',
-        timestamp: new Date().toISOString(),
-        agents: this.agentManager.getSystemHealth(),
-        portfolio: {
-          totalValue: this.portfolioManager.getPortfolio().total_value,
-          positions: this.portfolioManager.getPositions().length,
-          cash: this.portfolioManager.getPortfolio().cash
-        },
-        riskMetrics: this.riskManager.getRiskMetrics()
-      };
-      res.json(health);
+    this.app.get('/health', async (req, res) => {
+      try {
+        const systemHealth = await monitoringService.getSystemHealth();
+        res.json({
+          ...systemHealth,
+          running: this.isRunning
+        });
+      } catch (error) {
+        res.status(500).json({
+          status: 'unhealthy',
+          message: error instanceof Error ? error.message : 'Health check failed',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Monitoring endpoints
+    this.app.get('/metrics', (req, res) => {
+      const name = req.query.name as string;
+      const labels = req.query.labels ? JSON.parse(req.query.labels as string) : undefined;
+      const metrics = monitoringService.getMetrics(name, labels);
+      res.json(metrics);
+    });
+
+    this.app.get('/metrics/summary', (req, res) => {
+      const summary = this.tradingMetrics.getTradingMetricsSummary();
+      res.json(summary);
+    });
+
+    this.app.get('/metrics/export', (req, res) => {
+      const exportData = monitoringService.getMetricsForExport();
+      res.json(exportData);
+    });
+
+    this.app.get('/alerts', (req, res) => {
+      const resolved = req.query.resolved === 'true' ? true : req.query.resolved === 'false' ? false : undefined;
+      const alerts = monitoringService.getAlerts(resolved);
+      res.json(alerts);
+    });
+
+    this.app.post('/alerts/:id/resolve', (req, res) => {
+      const success = monitoringService.resolveAlert(req.params.id);
+      res.json({ success });
     });
 
     // Portfolio endpoints
@@ -339,6 +445,9 @@ class ZergTrader {
     this.agentManager.on('signal', (signal: Signal) => {
       console.log(`Received signal: ${signal.action} ${signal.symbol} (confidence: ${signal.confidence})`);
       
+      // Record signal metrics
+      this.tradingMetrics.recordSignalGenerated(signal);
+      
       // Process signal through portfolio manager
       const result = this.portfolioManager.processSignal(signal);
       
@@ -346,6 +455,10 @@ class ZergTrader {
         // Execute the trade
         const executionResult = this.portfolioManager.executeTrade(result.trade);
         console.log(`Trade execution: ${executionResult.success ? 'SUCCESS' : 'FAILED'} - ${executionResult.error || 'Trade executed'}`);
+        
+        if (!executionResult.success && executionResult.error) {
+          this.tradingMetrics.recordErrorEvent('portfolio', 'trade_execution_failed', executionResult.error);
+        }
       } else {
         console.log(`Signal rejected: ${result.reason}`);
       }
@@ -366,6 +479,9 @@ class ZergTrader {
     this.portfolioManager.on('tradeExecuted', (trade) => {
       console.log(`Trade executed: ${trade.action} ${trade.quantity} ${trade.symbol} at $${trade.price}`);
       
+      // Record trade metrics
+      this.tradingMetrics.recordTradeExecuted(trade);
+      
       this.broadcastToClients({
         type: 'tradeExecuted',
         data: trade
@@ -373,6 +489,10 @@ class ZergTrader {
     });
 
     this.portfolioManager.on('portfolioUpdated', (portfolio) => {
+      // Record portfolio metrics
+      this.tradingMetrics.recordPortfolioUpdate(portfolio);
+      this.tradingMetrics.recordPositionMetrics(portfolio.positions);
+      
       this.broadcastToClients({
         type: 'portfolioUpdate',
         data: {
@@ -388,6 +508,9 @@ class ZergTrader {
     // Risk manager events
     this.riskManager.on('riskAlert', (alert) => {
       console.log(`RISK ALERT [${alert.severity}]: ${alert.message}`);
+      
+      // Record risk event
+      this.tradingMetrics.recordRiskEvent('alert', alert.severity);
       
       this.broadcastToClients({
         type: 'riskAlert',
