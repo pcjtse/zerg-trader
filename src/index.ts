@@ -9,6 +9,7 @@ import { AgentManager } from './agents/AgentManager';
 import { DataManager } from './data/DataManager';
 import { PortfolioManager } from './portfolio/PortfolioManager';
 import { RiskManager } from './risk/RiskManager';
+import { BacktestController } from './backtesting/BacktestController';
 
 // Import agents
 import { TrendFollowingAgent } from './agents/technical/TrendFollowingAgent';
@@ -26,10 +27,11 @@ class ZergTrader {
   private app: express.Application;
   private server: any;
   private wss: WebSocket.Server;
-  private agentManager: AgentManager;
-  private dataManager: DataManager;
-  private portfolioManager: PortfolioManager;
-  private riskManager: RiskManager;
+  private agentManager!: AgentManager;
+  private dataManager!: DataManager;
+  private portfolioManager!: PortfolioManager;
+  private riskManager!: RiskManager;
+  private backtestController!: BacktestController;
   private isRunning: boolean = false;
 
   constructor() {
@@ -90,6 +92,9 @@ class ZergTrader {
 
     // Initialize agent manager
     this.agentManager = new AgentManager();
+
+    // Initialize backtest controller
+    this.backtestController = new BacktestController();
 
     // Create and register agents
     this.createAgents();
@@ -173,6 +178,7 @@ class ZergTrader {
 
   private setupRoutes(): void {
     this.app.use(express.json());
+    this.app.use(express.static('public'));
 
     // Health check
     this.app.get('/health', (req, res) => {
@@ -278,6 +284,16 @@ class ZergTrader {
         res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to stop' });
       }
     });
+
+    // Backtesting endpoints
+    this.app.post('/backtests', this.backtestController.createBacktest.bind(this.backtestController));
+    this.app.get('/backtests/:jobId', this.backtestController.getBacktestStatus.bind(this.backtestController));
+    this.app.get('/backtests/:jobId/result', this.backtestController.getBacktestResult.bind(this.backtestController));
+    this.app.get('/backtests', this.backtestController.getAllBacktests.bind(this.backtestController));
+    this.app.delete('/backtests/:jobId/cancel', this.backtestController.cancelBacktest.bind(this.backtestController));
+    this.app.delete('/backtests/:jobId', this.backtestController.deleteBacktest.bind(this.backtestController));
+    this.app.post('/backtests/compare', this.backtestController.compareBacktests.bind(this.backtestController));
+    this.app.get('/backtests/:jobId/export', this.backtestController.exportBacktestData.bind(this.backtestController));
   }
 
   private setupWebSocket(): void {

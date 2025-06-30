@@ -7,6 +7,7 @@ export class AgentManager extends EventEmitter {
   private messageHistory: Agent2AgentMessage[] = [];
   private maxHistorySize: number = 1000;
 
+
   public registerAgent(agent: BaseAgent): void {
     const agentId = agent.getId();
     

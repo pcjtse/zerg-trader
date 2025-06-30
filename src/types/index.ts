@@ -87,6 +87,7 @@ export interface Trade {
   timestamp: Date;
   status: 'PENDING' | 'FILLED' | 'CANCELLED';
   agent_signals: string[]; // Signal IDs that contributed
+  metadata?: Record<string, any>;
 }
 
 export interface AgentConfig {

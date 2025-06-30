@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZergTrader - Multi-Agent Trading System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css" rel="stylesheet">
+    <link href="/styles/main.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <i class="fas fa-chart-line"></i>
+                <span>ZergTrader</span>
+            </div>
+            <div class="nav-links">
+                <a href="#dashboard" class="nav-link active" data-page="dashboard">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="#portfolio" class="nav-link" data-page="portfolio">
+                    <i class="fas fa-briefcase"></i> Portfolio
+                </a>
+                <a href="#backtesting" class="nav-link" data-page="backtesting">
+                    <i class="fas fa-history"></i> Backtesting
+                </a>
+                <a href="#agents" class="nav-link" data-page="agents">
+                    <i class="fas fa-robot"></i> Agents
+                </a>
+                <a href="#risk" class="nav-link" data-page="risk">
+                    <i class="fas fa-shield-alt"></i> Risk
+                </a>
+                <a href="#trades" class="nav-link" data-page="trades">
+                    <i class="fas fa-exchange-alt"></i> Trades
+                </a>
+            </div>
+            <div class="nav-controls">
+                <button id="system-toggle" class="btn btn-primary">
+                    <i class="fas fa-power-off"></i> Start System
+                </button>
+                <div class="connection-status" id="connection-status">
+                    <i class="fas fa-circle"></i> Disconnected
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="page active">
+                <div class="page-header">
+                    <h1>Dashboard</h1>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="refresh-dashboard">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <!-- Portfolio Summary -->
+                    <div class="card portfolio-summary">
+                        <div class="card-header">
+                            <h3>Portfolio Summary</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="metric-grid">
+                                <div class="metric">
+                                    <div class="metric-label">Total Value</div>
+                                    <div class="metric-value" id="total-value">$0</div>
+                                    <div class="metric-change" id="total-value-change">+0.00%</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Cash</div>
+                                    <div class="metric-value" id="cash-value">$0</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Daily P&L</div>
+                                    <div class="metric-value" id="daily-pnl">$0</div>
+                                    <div class="metric-change" id="daily-pnl-change">+0.00%</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Total P&L</div>
+                                    <div class="metric-value" id="total-pnl">$0</div>
+                                    <div class="metric-change" id="total-pnl-change">+0.00%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Chart -->
+                    <div class="card performance-chart">
+                        <div class="card-header">
+                            <h3>Portfolio Performance</h3>
+                            <div class="chart-controls">
+                                <select id="chart-timeframe">
+                                    <option value="1D">1D</option>
+                                    <option value="1W">1W</option>
+                                    <option value="1M" selected>1M</option>
+                                    <option value="3M">3M</option>
+                                    <option value="1Y">1Y</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="performance-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Agent Status -->
+                    <div class="card agent-status">
+                        <div class="card-header">
+                            <h3>Agent Status</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="agent-list" class="agent-list">
+                                <!-- Agents will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Signals -->
+                    <div class="card recent-signals">
+                        <div class="card-header">
+                            <h3>Recent Signals</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="signals-list" class="signals-list">
+                                <!-- Signals will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Risk Metrics -->
+                    <div class="card risk-metrics">
+                        <div class="card-header">
+                            <h3>Risk Metrics</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="risk-grid">
+                                <div class="risk-item">
+                                    <span class="risk-label">Sharpe Ratio</span>
+                                    <span class="risk-value" id="sharpe-ratio">0.00</span>
+                                </div>
+                                <div class="risk-item">
+                                    <span class="risk-label">Max Drawdown</span>
+                                    <span class="risk-value" id="max-drawdown">0.00%</span>
+                                </div>
+                                <div class="risk-item">
+                                    <span class="risk-label">VaR (95%)</span>
+                                    <span class="risk-value" id="portfolio-var">0.00%</span>
+                                </div>
+                                <div class="risk-item">
+                                    <span class="risk-label">Beta</span>
+                                    <span class="risk-value" id="portfolio-beta">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Health -->
+                    <div class="card system-health">
+                        <div class="card-header">
+                            <h3>System Health</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="health-items">
+                                <div class="health-item">
+                                    <i class="fas fa-server"></i>
+                                    <span>System Status</span>
+                                    <span class="status" id="system-status">Stopped</span>
+                                </div>
+                                <div class="health-item">
+                                    <i class="fas fa-robot"></i>
+                                    <span>Active Agents</span>
+                                    <span class="count" id="active-agents">0/0</span>
+                                </div>
+                                <div class="health-item">
+                                    <i class="fas fa-chart-line"></i>
+                                    <span>Data Feed</span>
+                                    <span class="status" id="data-feed-status">Disconnected</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio Page -->
+            <div id="portfolio-page" class="page">
+                <div class="page-header">
+                    <h1>Portfolio</h1>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" id="rebalance-portfolio">
+                            <i class="fas fa-balance-scale"></i> Rebalance
+                        </button>
+                    </div>
+                </div>
+
+                <div class="portfolio-grid">
+                    <!-- Portfolio Allocation -->
+                    <div class="card portfolio-allocation">
+                        <div class="card-header">
+                            <h3>Asset Allocation</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="allocation-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Positions Table -->
+                    <div class="card positions-table">
+                        <div class="card-header">
+                            <h3>Current Positions</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table id="positions-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Symbol</th>
+                                            <th>Quantity</th>
+                                            <th>Avg Price</th>
+                                            <th>Current Price</th>
+                                            <th>Market Value</th>
+                                            <th>Unrealized P&L</th>
+                                            <th>Weight</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Positions will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backtesting Page -->
+            <div id="backtesting-page" class="page">
+                <div class="page-header">
+                    <h1>Backtesting</h1>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" id="new-backtest">
+                            <i class="fas fa-plus"></i> New Backtest
+                        </button>
+                    </div>
+                </div>
+
+                <div class="backtesting-grid">
+                    <!-- Backtest Configuration -->
+                    <div class="card backtest-config" id="backtest-config" style="display: none;">
+                        <div class="card-header">
+                            <h3>New Backtest Configuration</h3>
+                            <button class="btn btn-secondary btn-sm" id="cancel-backtest">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <form id="backtest-form">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="backtest-name">Name</label>
+                                        <input type="text" id="backtest-name" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="initial-capital">Initial Capital</label>
+                                        <input type="number" id="initial-capital" value="100000" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="start-date">Start Date</label>
+                                        <input type="date" id="start-date" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="end-date">End Date</label>
+                                        <input type="date" id="end-date" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="symbols">Symbols (comma-separated)</label>
+                                        <input type="text" id="symbols" value="AAPL,MSFT,GOOGL,TSLA,AMZN" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="data-provider">Data Provider</label>
+                                        <select id="data-provider">
+                                            <option value="mock">Mock Data</option>
+                                            <option value="alphavantage">Alpha Vantage</option>
+                                            <option value="csv">CSV File</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-play"></i> Start Backtest
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Backtest Results -->
+                    <div class="card backtest-results">
+                        <div class="card-header">
+                            <h3>Backtest Results</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="backtest-jobs" class="backtest-jobs">
+                                <!-- Backtest jobs will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Comparison -->
+                    <div class="card performance-comparison">
+                        <div class="card-header">
+                            <h3>Performance Comparison</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="backtest-comparison-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agents Page -->
+            <div id="agents-page" class="page">
+                <div class="page-header">
+                    <h1>Agent Management</h1>
+                </div>
+
+                <div class="agents-grid">
+                    <div id="agents-container" class="agents-container">
+                        <!-- Agent cards will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Page -->
+            <div id="risk-page" class="page">
+                <div class="page-header">
+                    <h1>Risk Management</h1>
+                </div>
+
+                <div class="risk-dashboard">
+                    <!-- Risk Alerts -->
+                    <div class="card risk-alerts">
+                        <div class="card-header">
+                            <h3>Active Alerts</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="risk-alerts" class="alerts-list">
+                                <!-- Alerts will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Risk Metrics Chart -->
+                    <div class="card risk-chart">
+                        <div class="card-header">
+                            <h3>Risk Metrics Over Time</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="risk-metrics-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trades Page -->
+            <div id="trades-page" class="page">
+                <div class="page-header">
+                    <h1>Trading History</h1>
+                </div>
+
+                <div class="trades-container">
+                    <div class="card trades-table">
+                        <div class="card-header">
+                            <h3>Recent Trades</h3>
+                            <div class="table-controls">
+                                <input type="text" id="trade-search" placeholder="Search trades...">
+                                <select id="trade-filter">
+                                    <option value="">All</option>
+                                    <option value="BUY">Buy</option>
+                                    <option value="SELL">Sell</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table id="trades-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>Symbol</th>
+                                            <th>Action</th>
+                                            <th>Quantity</th>
+                                            <th>Price</th>
+                                            <th>Value</th>
+                                            <th>Status</th>
+                                            <th>Agent</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Trades will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Loading...</span>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container">
+            <!-- Toasts will be dynamically added here -->
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="/scripts/api.js"></script>
+    <script src="/scripts/websocket.js"></script>
+    <script src="/scripts/charts.js"></script>
+    <script src="/scripts/ui.js"></script>
+    <script src="/scripts/main.js"></script>
+</body>
+</html>

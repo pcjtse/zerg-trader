@@ -23,6 +23,22 @@ A sophisticated multi-agent trading system that uses specialized AI agents for t
 - **Automated Stops**: Real-time stop-loss execution with slippage protection
 - **Alert System**: Automated risk alerts with severity-based actions
 
+### Backtesting Framework
+- **Historical Simulation**: Run trading strategies against historical data
+- **Performance Analytics**: Calculate 20+ performance metrics
+- **Parameter Optimization**: Sweep through parameter ranges to find optimal settings
+- **Multiple Data Sources**: Support for real market data, mock data, and CSV imports
+- **Comparison Tools**: Compare multiple backtest results side-by-side
+
+### Modern Web UI
+- **Real-time Dashboard**: Portfolio overview with live updates
+- **Interactive Charts**: Performance, allocation, and risk visualization
+- **Agent Management**: Monitor and control individual agents
+- **Backtesting Interface**: Configure and run backtests with results visualization
+- **Risk Dashboard**: Real-time risk monitoring and alerts
+- **Trading History**: Comprehensive trade tracking and analysis
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
+
 ## 📋 Requirements
 
 - Node.js 18+ 
@@ -100,6 +116,44 @@ npm run build
 npm start
 ```
 
+### Web Interface
+
+Open your browser and navigate to `http://localhost:3000` to access the ZergTrader UI.
+
+#### Dashboard
+- **Portfolio Overview**: Real-time portfolio value, cash, P&L
+- **Performance Chart**: Historical portfolio performance
+- **Agent Status**: Monitor all active agents
+- **Recent Signals**: Latest trading signals from agents
+- **Risk Metrics**: Key risk indicators
+- **System Health**: Overall system status
+
+#### Portfolio Management
+- **Asset Allocation**: Visual breakdown of portfolio holdings
+- **Positions Table**: Detailed view of all positions
+- **Rebalancing**: Manual and automated portfolio rebalancing
+
+#### Backtesting
+- **New Backtest**: Configure and run historical simulations
+- **Results View**: Analyze backtest performance and metrics
+- **Comparison**: Compare multiple backtest strategies
+- **Export**: Download results in JSON or CSV format
+
+#### Agent Management
+- **Agent Cards**: Individual agent status and controls
+- **Start/Stop**: Control individual agents
+- **Performance Metrics**: Agent-specific performance tracking
+
+#### Risk Management
+- **Active Alerts**: Real-time risk alerts and warnings
+- **Risk Metrics**: Historical risk metric trends
+- **Alert Resolution**: Acknowledge and resolve alerts
+
+#### Trading History
+- **Trade Log**: Complete trading history with filters
+- **Search**: Find specific trades by symbol or criteria
+- **Export**: Download trading data for analysis
+
 ### API Endpoints
 
 #### System Control
@@ -126,6 +180,16 @@ npm start
 #### Trading History
 - `GET /trades` - Trading history
 - `GET /trades?limit=50` - Limited trading history
+
+#### Backtesting
+- `POST /backtests` - Create new backtest
+- `GET /backtests/:jobId` - Get backtest status
+- `GET /backtests/:jobId/result` - Get backtest results
+- `GET /backtests` - List all backtests
+- `DELETE /backtests/:jobId/cancel` - Cancel running backtest
+- `DELETE /backtests/:jobId` - Delete backtest
+- `POST /backtests/compare` - Compare multiple backtests
+- `GET /backtests/:jobId/export` - Export backtest data
 
 ### WebSocket Real-time Updates
 
@@ -193,6 +257,13 @@ ws.on('message', (data) => {
 4. **Risk Evaluation**: Risk manager evaluates proposed trades against constraints
 5. **Trade Execution**: Portfolio manager executes approved trades
 6. **Performance Tracking**: Continuous monitoring and agent performance updates
+
+### UI Architecture
+- **React-like Components**: Modular UI components with state management
+- **Real-time Updates**: WebSocket integration for live data
+- **Chart.js Integration**: Professional financial charts and visualizations
+- **Responsive Design**: Mobile-first responsive layout
+- **API Client**: Comprehensive REST API integration
 
 ## 🧪 Testing
 
@@ -298,6 +369,17 @@ npm run lint
 }
 ```
 
+### Keyboard Shortcuts
+- `Ctrl/Cmd + 1-6`: Navigate between pages
+- `Ctrl/Cmd + R`: Refresh current page
+- `Escape`: Close modals/overlays
+
+### Development Mode
+When running on localhost, enable debug mode:
+```javascript
+enableDebug() // In browser console
+```
+
 ## 📈 Performance Optimization
 
 ### Agent Performance Tracking
@@ -309,6 +391,12 @@ npm run lint
 - Intelligent caching with TTL
 - Multiple data source failover
 - Batch processing for technical indicators
+
+### UI Optimization
+- Lazy loading of chart data
+- Virtual scrolling for large tables
+- Debounced search and filtering
+- WebSocket message batching
 
 ## 🚨 Troubleshooting
 
@@ -326,6 +414,14 @@ npm run lint
    - Check agent configuration
    - Verify required parameters are set
 
+4. **Charts Not Loading**
+   - Check browser console for errors
+   - Verify Chart.js library is loaded
+
+5. **UI Not Responsive**
+   - Clear browser cache
+   - Check for JavaScript errors
+
 ### Logs
 ```bash
 # View application logs
@@ -333,6 +429,16 @@ npm run dev
 
 # Check for errors
 grep "ERROR" logs/app.log
+```
+
+### Debug Mode
+```javascript
+// Enable debug mode in development
+enableDebug()
+
+// Access debug tools
+ZergTraderDebug.app.getStatus()
+ZergTraderDebug.websocket.getConnectionState()
 ```
 
 ## 📝 License

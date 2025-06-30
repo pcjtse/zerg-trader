@@ -85,7 +85,7 @@ jspm_packages/
 
 # Gatsby files
 .cache/
-public
+# public
 
 # vue-ssr generated files
 ssr-manifest.json

@@ -11,32 +11,38 @@
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["trading", "multi-agent", "financial", "analysis"],
+  "keywords": [
+    "trading",
+    "multi-agent",
+    "financial",
+    "analysis"
+  ],
   "author": "ZergTrader",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.0",
-    "express": "^4.18.0",
-    "ws": "^8.14.0",
-    "node-cron": "^3.0.3",
     "dotenv": "^16.3.0",
+    "express": "^4.18.0",
     "lodash": "^4.17.21",
     "moment": "^2.29.4",
-    "uuid": "^9.0.1"
+    "node-cron": "^3.0.3",
+    "uuid": "^9.0.1",
+    "ws": "^8.14.0"
   },
   "devDependencies": {
-    "@types/node": "^20.8.0",
     "@types/express": "^4.17.0",
-    "@types/ws": "^8.5.0",
+    "@types/jest": "^29.5.0",
     "@types/lodash": "^4.14.0",
+    "@types/node": "^20.8.0",
+    "@types/node-cron": "^3.0.11",
     "@types/uuid": "^9.0.0",
+    "@types/ws": "^8.5.0",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
     "eslint": "^8.50.0",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.0",
-    "ts-jest": "^29.1.0",
     "nodemon": "^3.0.0",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.0",
     "typescript": "^5.2.0"
   }
