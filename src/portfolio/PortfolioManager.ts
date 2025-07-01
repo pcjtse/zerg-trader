@@ -13,6 +13,12 @@ export interface PortfolioConfig {
     spreadCost: number; // Percentage cost for spread
     slippage: number; // Percentage for slippage
   };
+  brokerConfig?: {
+    alpacaApiKey?: string;
+    alpacaSecretKey?: string;
+    alpacaBaseUrl?: string;
+    enableLiveTrading?: boolean;
+  };
 }
 
 export interface RebalanceStrategy {

@@ -8,6 +8,8 @@ export interface A2AServiceConfig {
   agentCard: A2AAgentCard;
   enableServer?: boolean;
   enableClient?: boolean;
+  registryEndpoint?: string;
+  enableDiscovery?: boolean;
 }
 
 export class A2AService extends EventEmitter {
@@ -19,7 +21,12 @@ export class A2AService extends EventEmitter {
 
   constructor(config: A2AServiceConfig) {
     super();
-    this.config = config;
+    this.config = {
+      serverPort: parseInt(process.env.A2A_SERVER_PORT || '3001'),
+      registryEndpoint: process.env.A2A_REGISTRY_ENDPOINT,
+      enableDiscovery: process.env.A2A_ENABLE_DISCOVERY === 'true',
+      ...config
+    };
     this.initializeService();
   }
 
@@ -31,6 +38,11 @@ export class A2AService extends EventEmitter {
       
       if (this.config.enableClient !== false) {
         await this.initializeClient();
+      }
+
+      // Auto-register with registry if enabled and endpoint provided
+      if (this.config.enableDiscovery && this.config.registryEndpoint) {
+        await this.registerWithRegistry(this.config.registryEndpoint);
       }
       
       this.emit('initialized');

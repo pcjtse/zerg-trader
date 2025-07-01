@@ -36,11 +36,13 @@ export class TradingViewClient extends EventEmitter {
     super();
     
     this.config = {
-      baseUrl: 'https://scanner.tradingview.com',
-      timeout: 30000,
-      rateLimit: 100, // requests per minute
-      enableWebSocket: true,
-      enableRealtimeData: true,
+      apiKey: process.env.TRADINGVIEW_API_KEY,
+      baseUrl: process.env.TRADINGVIEW_BASE_URL || 'https://scanner.tradingview.com',
+      timeout: parseInt(process.env.TRADINGVIEW_TIMEOUT || '30000'),
+      rateLimit: parseInt(process.env.TRADINGVIEW_RATE_LIMIT || '100'),
+      enableWebSocket: process.env.TRADINGVIEW_ENABLE_WEBSOCKET !== 'false',
+      enableRealtimeData: process.env.TRADINGVIEW_ENABLE_REALTIME !== 'false',
+      enabled: process.env.TRADINGVIEW_ENABLE === 'true',
       ...config
     };
 

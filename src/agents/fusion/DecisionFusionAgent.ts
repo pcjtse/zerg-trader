@@ -89,7 +89,7 @@ export class DecisionFusionAgent extends BaseAgent {
     }
   }
 
-  public async analyze(data: { signals: Signal[] }): Promise<Signal[]> {
+  public async analyze(data: { signals: Signal[]; symbol?: string }): Promise<Signal[]> {
     const { signals } = data;
     
     if (!signals || signals.length === 0) {

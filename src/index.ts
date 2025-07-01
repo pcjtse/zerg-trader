@@ -23,6 +23,9 @@ import { monitoringService, TradingMetrics, HealthChecks } from './monitoring';
 // Import types
 import { AgentConfig, Portfolio, Signal } from './types';
 
+// Import logger
+import { Logger } from './utils/logger';
+
 // Load environment variables
 dotenv.config();
 
@@ -51,7 +54,7 @@ class ZergTrader {
   }
 
   private initializeComponents(): void {
-    console.log('Initializing ZergTrader components...');
+    Logger.info('Initializing ZergTrader components...');
 
     // Initialize data manager
     this.dataManager = new DataManager();
@@ -60,12 +63,12 @@ class ZergTrader {
     const riskConstraints = {
       maxPositionSize: parseFloat(process.env.MAX_POSITION_SIZE || '0.1'), // 10%
       maxDailyLoss: parseFloat(process.env.MAX_DAILY_LOSS || '0.05'), // 5%
-      maxDrawdown: 0.20, // 20%
+      maxDrawdown: parseFloat(process.env.MAX_DRAWDOWN || '0.20'), // 20%
       stopLossPercentage: parseFloat(process.env.STOP_LOSS_PERCENTAGE || '0.02'), // 2%
       maxLeverage: 1.0, // No leverage
-      maxConcentrationPerSector: 0.30, // 30%
-      maxConcentrationPerSymbol: 0.15, // 15%
-      minCashReserve: 0.05 // 5%
+      maxConcentrationPerSector: parseFloat(process.env.MAX_CONCENTRATION_SECTOR || '0.30'), // 30%
+      maxConcentrationPerSymbol: parseFloat(process.env.MAX_CONCENTRATION_SYMBOL || '0.15'), // 15%
+      minCashReserve: parseFloat(process.env.MIN_CASH_RESERVE || '0.05') // 5%
     };
 
     const initialPortfolio: Portfolio = {
@@ -90,6 +93,12 @@ class ZergTrader {
         commission: 1.0, // $1 per trade
         spreadCost: 0.001, // 0.1%
         slippage: 0.0005 // 0.05%
+      },
+      brokerConfig: {
+        alpacaApiKey: process.env.ALPACA_API_KEY,
+        alpacaSecretKey: process.env.ALPACA_SECRET_KEY,
+        alpacaBaseUrl: process.env.ALPACA_BASE_URL || 'https://paper-api.alpaca.markets',
+        enableLiveTrading: false // Always start with paper trading for safety
       }
     };
 
@@ -193,7 +202,7 @@ class ZergTrader {
     this.agentManager.registerAgent(valuationAgent);
     this.agentManager.registerAgent(fusionAgent);
 
-    console.log(`Registered ${this.agentManager.getAllAgents().length} agents`);
+    Logger.info(`Registered ${this.agentManager.getAllAgents().length} agents`);
   }
 
   private setupHealthChecks(): void {

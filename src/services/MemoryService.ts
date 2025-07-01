@@ -19,16 +19,28 @@ export class MemoryService extends EventEmitter {
   private typeIndex: Map<MemoryType, Set<string>> = new Map();
   private tagIndex: Map<string, Set<string>> = new Map();
   private persistencePath: string;
-  private maxMemories: number = 10000;
+  private maxMemories: number;
+  private maxMemoriesPerAgent: number;
   private cleanupInterval?: NodeJS.Timeout;
+  private cleanupIntervalMs: number;
+  private highImportanceThreshold: number;
+  private enableMemory: boolean;
 
-  constructor(persistencePath: string = './data/memories') {
+  constructor(persistencePath?: string) {
     super();
-    this.persistencePath = persistencePath;
-    this.initializeIndices();
-    this.ensurePersistenceDirectory();
-    this.loadMemoriesFromDisk();
-    this.startCleanupScheduler();
+    this.enableMemory = process.env.ENABLE_AGENT_MEMORY !== 'false';
+    this.persistencePath = persistencePath || process.env.MEMORY_PERSISTENCE_PATH || './data/memories';
+    this.maxMemories = parseInt(process.env.MAX_MEMORIES_PER_AGENT || '1000');
+    this.maxMemoriesPerAgent = parseInt(process.env.MAX_MEMORIES_PER_AGENT || '1000');
+    this.cleanupIntervalMs = parseInt(process.env.MEMORY_CLEANUP_INTERVAL || '3600000');
+    this.highImportanceThreshold = parseFloat(process.env.HIGH_IMPORTANCE_THRESHOLD || '0.7');
+    
+    if (this.enableMemory) {
+      this.initializeIndices();
+      this.ensurePersistenceDirectory();
+      this.loadMemoriesFromDisk();
+      this.startCleanupScheduler();
+    }
   }
 
   private initializeIndices(): void {
@@ -44,13 +56,16 @@ export class MemoryService extends EventEmitter {
   }
 
   private startCleanupScheduler(): void {
-    // Clean up expired memories every hour
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredMemories();
-    }, 60 * 60 * 1000);
+    }, this.cleanupIntervalMs);
   }
 
   public async storeMemory(memory: Omit<MemoryEntry, 'id' | 'timestamp'>): Promise<string> {
+    if (!this.enableMemory) {
+      return 'memory-disabled';
+    }
+
     const id = uuidv4();
     const entry: MemoryEntry = {
       ...memory,
@@ -68,7 +83,7 @@ export class MemoryService extends EventEmitter {
     await this.enforceMemoryLimits();
 
     // Persist to disk if important
-    if (entry.importance >= 0.7) {
+    if (entry.importance >= this.highImportanceThreshold) {
       await this.persistMemory(entry);
     }
 

@@ -21,31 +21,52 @@ export class ClaudeClient {
   private client: Anthropic;
   private model: string = 'claude-3-5-sonnet-20241022';
   private memoryService?: MemoryService;
+  private enableClaudeAnalysis: boolean;
+  private confidenceThreshold: number;
+  private analysisTimeout: number;
 
   constructor(apiKey?: string, memoryService?: MemoryService) {
     this.client = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
     });
     this.memoryService = memoryService;
+    this.enableClaudeAnalysis = process.env.ENABLE_CLAUDE_ANALYSIS !== 'false';
+    this.confidenceThreshold = parseFloat(process.env.CLAUDE_CONFIDENCE_THRESHOLD || '0.7');
+    this.analysisTimeout = parseInt(process.env.AI_ANALYSIS_TIMEOUT || '30000');
   }
 
   async analyzeMarketData(request: ClaudeAnalysisRequest): Promise<ClaudeAnalysisResponse> {
+    if (!this.enableClaudeAnalysis) {
+      return {
+        signals: [],
+        reasoning: 'Claude analysis is disabled',
+        confidence: 0,
+        risks: ['Analysis disabled'],
+        recommendations: []
+      };
+    }
+
     const systemPrompt = this.buildSystemPrompt(request.type);
     const userPrompt = this.buildUserPrompt(request);
 
     try {
-      const message = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 4000,
-        temperature: 0.1,
-        system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: userPrompt,
-          },
-        ],
-      });
+      const message = await Promise.race([
+        this.client.messages.create({
+          model: this.model,
+          max_tokens: 4000,
+          temperature: 0.1,
+          system: systemPrompt,
+          messages: [
+            {
+              role: 'user',
+              content: userPrompt,
+            },
+          ],
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Analysis timeout')), this.analysisTimeout)
+        )
+      ]);
 
       const content = message.content[0];
       if (content.type !== 'text') {
@@ -122,9 +143,9 @@ Guidelines:
     return prompt;
   }
 
-  private parseResponse(response: string, request: ClaudeAnalysisRequest): ClaudeAnalysisResponse {
+  private parseResponse(responseText: string, request: ClaudeAnalysisRequest): ClaudeAnalysisResponse {
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON found in response');
       }
@@ -138,13 +159,20 @@ Guidelines:
         id: signal.id || `claude_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       })) || [];
 
-      return {
-        signals,
+      const response = {
+        signals: signals.filter(signal => signal.confidence >= this.confidenceThreshold),
         reasoning: parsed.reasoning || 'No reasoning provided',
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.5)),
         risks: parsed.risks || [],
         recommendations: parsed.recommendations || [],
       };
+
+      // Filter out low confidence signals
+      if (response.signals.length < signals.length) {
+        response.risks.push(`${signals.length - response.signals.length} signals filtered due to low confidence`);
+      }
+
+      return response;
     } catch (error) {
       console.error('Failed to parse Claude response:', error);
       return {

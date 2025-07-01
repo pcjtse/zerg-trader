@@ -266,6 +266,7 @@ export interface TradingViewConfig {
   rateLimit?: number;
   enableWebSocket?: boolean;
   enableRealtimeData?: boolean;
+  enabled?: boolean;
 }
 
 export interface TradingViewSymbolInfo {
