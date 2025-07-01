@@ -257,3 +257,212 @@ export interface MemoryRetrievalContext {
   maxMemories?: number;
   relevanceThreshold?: number;
 }
+
+// TradingView API Types
+export interface TradingViewConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  timeout?: number;
+  rateLimit?: number;
+  enableWebSocket?: boolean;
+  enableRealtimeData?: boolean;
+}
+
+export interface TradingViewSymbolInfo {
+  symbol: string;
+  name: string;
+  type: 'stock' | 'forex' | 'crypto' | 'futures' | 'index';
+  exchange: string;
+  timezone: string;
+  minmov: number;
+  pricescale: number;
+  session: string;
+  description: string;
+  has_intraday: boolean;
+  has_daily: boolean;
+  has_weekly_and_monthly: boolean;
+  supported_resolutions: string[];
+  volume_precision?: number;
+  data_status: 'streaming' | 'endofday' | 'pulsed' | 'delayed_streaming';
+}
+
+export interface TradingViewBar {
+  time: number; // Unix timestamp
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+export interface TradingViewHistoryRequest {
+  symbol: string;
+  resolution: '1' | '5' | '15' | '30' | '60' | '240' | '1D' | '1W' | '1M';
+  from: number; // Unix timestamp
+  to: number;   // Unix timestamp
+  countback?: number;
+  firstDataRequest?: boolean;
+}
+
+export interface TradingViewHistoryResponse {
+  s: 'ok' | 'no_data' | 'error';
+  t?: number[]; // time array
+  o?: number[]; // open array
+  h?: number[]; // high array
+  l?: number[]; // low array
+  c?: number[]; // close array
+  v?: number[]; // volume array
+  errmsg?: string;
+  nextTime?: number;
+}
+
+export interface TradingViewQuote {
+  symbol: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  volume: number;
+  bid?: number;
+  ask?: number;
+  timestamp: number;
+}
+
+export interface TradingViewIndicatorRequest {
+  symbol: string;
+  resolution: string;
+  indicator: 'SMA' | 'EMA' | 'RSI' | 'MACD' | 'BB' | 'STOCH' | 'VWAP';
+  period?: number;
+  parameters?: Record<string, any>;
+  from: number;
+  to: number;
+}
+
+export interface TradingViewIndicatorResponse {
+  s: 'ok' | 'error';
+  t: number[]; // timestamps
+  v: number[]; // values
+  errmsg?: string;
+}
+
+export interface TradingViewScreenerRequest {
+  filter: TradingViewScreenerFilter[];
+  options?: {
+    lang?: string;
+    active_symbols_only?: boolean;
+  };
+  markets?: string[];
+  symbols?: {
+    query?: {
+      types?: string[];
+    };
+    tickers?: string[];
+  };
+  sort?: {
+    sortBy: string;
+    sortOrder: 'asc' | 'desc';
+  };
+  range?: [number, number];
+}
+
+export interface TradingViewScreenerFilter {
+  left: string;
+  operation: 'greater' | 'less' | 'egreater' | 'eless' | 'equal' | 'nequal' | 'in_range' | 'not_in_range' | 'in_day_range' | 'not_in_day_range' | 'above' | 'below' | 'crosses' | 'crosses_above' | 'crosses_below' | 'in_range' | 'not_in_range';
+  right: number | string | number[];
+}
+
+export interface TradingViewScreenerResponse {
+  data: Array<{
+    s: string; // symbol
+    d: any[]; // data array matching requested columns
+  }>;
+  totalCount: number;
+}
+
+export interface TradingViewWebSocketMessage {
+  m: string; // method
+  p: any[];  // parameters
+}
+
+export interface TradingViewRealtimeUpdate {
+  symbol: string;
+  price: number;
+  volume?: number;
+  bid?: number;
+  ask?: number;
+  timestamp: number;
+  change?: number;
+  change_percent?: number;
+}
+
+export interface TradingViewBacktestConfig {
+  strategy: string;
+  symbol: string;
+  resolution: string;
+  from: number;
+  to: number;
+  parameters: Record<string, any>;
+  currency?: string;
+  commission?: number;
+  slippage?: number;
+}
+
+export interface TradingViewBacktestResult {
+  strategy: string;
+  symbol: string;
+  period: {
+    from: number;
+    to: number;
+  };
+  performance: {
+    totalReturn: number;
+    annualizedReturn: number;
+    sharpeRatio: number;
+    maxDrawdown: number;
+    winRate: number;
+    profitFactor: number;
+    totalTrades: number;
+    avgTradeReturn: number;
+  };
+  trades: Array<{
+    entryTime: number;
+    exitTime: number;
+    side: 'long' | 'short';
+    entryPrice: number;
+    exitPrice: number;
+    quantity: number;
+    pnl: number;
+    pnlPercent: number;
+    runup: number;
+    drawdown: number;
+  }>;
+  equity: Array<{
+    time: number;
+    value: number;
+  }>;
+}
+
+export interface TradingViewTechnicalAnalysis {
+  symbol: string;
+  timeframe: string;
+  summary: {
+    recommendation: 'STRONG_BUY' | 'BUY' | 'NEUTRAL' | 'SELL' | 'STRONG_SELL';
+    buy: number;
+    sell: number;
+    neutral: number;
+  };
+  oscillators: {
+    recommendation: 'STRONG_BUY' | 'BUY' | 'NEUTRAL' | 'SELL' | 'STRONG_SELL';
+    indicators: Record<string, {
+      action: 'BUY' | 'SELL' | 'NEUTRAL';
+      value: number;
+    }>;
+  };
+  moving_averages: {
+    recommendation: 'STRONG_BUY' | 'BUY' | 'NEUTRAL' | 'SELL' | 'STRONG_SELL';
+    indicators: Record<string, {
+      action: 'BUY' | 'SELL' | 'NEUTRAL';
+      value: number;
+    }>;
+  };
+  timestamp: number;
+}

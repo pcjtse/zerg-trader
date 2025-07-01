@@ -1,6 +1,6 @@
 # ZergTrader
 
-A next-generation multi-agent trading system powered by **Google's Agent2Agent (A2A) protocol** and **Claude AI**. Features specialized AI agents for technical analysis, fundamental analysis, and decision fusion with advanced interoperability and AI-enhanced decision making.
+A next-generation multi-agent trading system powered by **Google's Agent2Agent (A2A) protocol**, **Claude AI**, and **TradingView API integration**. Features specialized AI agents for technical analysis, fundamental analysis, and decision fusion with advanced interoperability, professional-grade market data, and AI-enhanced decision making.
 
 ## 🚀 Features
 
@@ -21,13 +21,24 @@ A next-generation multi-agent trading system powered by **Google's Agent2Agent (
 - **Real-time Message Routing**: Efficient JSON-RPC 2.0 based agent communication
 - **Agent Capabilities Registry**: Comprehensive capability and method introspection
 
+### 📈 TradingView Integration
+- **Professional Market Data**: Real-time and historical data from TradingView's premium data feeds
+- **Advanced Technical Indicators**: Complete library of TradingView's technical analysis tools
+- **Real-time Streaming**: WebSocket-based live market data updates
+- **Stock Screening**: Powerful stock screening with custom filters and sorting
+- **Technical Analysis Summary**: Automated technical analysis recommendations
+- **Strategy Backtesting**: TradingView-powered backtesting engine with realistic market conditions
+- **Symbol Universe**: Access to global markets including stocks, forex, crypto, and futures
+- **Data Quality**: Institutional-grade data with millisecond precision
+
 ### 🧠 AI-Powered Analytics
 - **Claude-Enhanced Technical Analysis**: AI-powered interpretation of technical indicators
+- **TradingView-Claude Fusion**: Combines TradingView's data quality with Claude's analytical intelligence
 - **Memory-Driven Insights**: Context-aware analysis using historical market patterns and performance feedback
 - **Adaptive Learning**: Agents continuously improve through performance tracking and memory-based feedback loops
 - **Intelligent Pattern Recognition**: Advanced ML-based market pattern detection
 - **Smart Signal Fusion**: AI-optimized combination of multiple analysis sources
-- **Technical Indicators**: SMA, EMA, RSI, MACD, Bollinger Bands, VWAP, Fibonacci retracements
+- **Technical Indicators**: SMA, EMA, RSI, MACD, Bollinger Bands, VWAP, Fibonacci retracements, Stochastic
 - **Fundamental Analysis**: AI-enhanced DCF valuation, P/E ratios, debt analysis, profitability metrics
 - **Risk Metrics**: VaR, Sharpe ratio, Sortino ratio, maximum drawdown, beta/alpha calculation
 - **AI Sentiment Analysis**: Advanced natural language processing for market sentiment
@@ -142,6 +153,15 @@ MEMORY_PERSISTENCE_PATH=./data/memories  # Path for persistent memory storage
 MAX_MEMORIES_PER_AGENT=1000          # Maximum memories per agent
 MEMORY_CLEANUP_INTERVAL=3600000      # Memory cleanup interval (ms)
 HIGH_IMPORTANCE_THRESHOLD=0.7        # Persistence threshold for memories
+
+# TradingView Integration
+TRADINGVIEW_API_KEY=your_tradingview_api_key    # TradingView API key
+TRADINGVIEW_BASE_URL=https://scanner.tradingview.com  # TradingView API base URL
+TRADINGVIEW_ENABLE=false                        # Enable TradingView integration
+TRADINGVIEW_ENABLE_WEBSOCKET=true               # Enable WebSocket for real-time data
+TRADINGVIEW_ENABLE_REALTIME=true                # Enable real-time data streaming
+TRADINGVIEW_TIMEOUT=30000                       # API request timeout (ms)
+TRADINGVIEW_RATE_LIMIT=100                      # Rate limit (requests per minute)
 ```
 
 ### Risk Management Configuration
@@ -252,6 +272,19 @@ Open your browser and navigate to `http://localhost:3000` to access the ZergTrad
 - `POST /backtests/compare` - Compare multiple backtests
 - `GET /backtests/:jobId/export` - Export backtest data
 
+#### TradingView Integration
+- `GET /tradingview/status` - TradingView service connection status
+- `GET /tradingview/symbols/:symbol/info` - Get symbol information from TradingView
+- `GET /tradingview/symbols/:symbol/quote` - Get real-time quote data
+- `GET /tradingview/symbols/:symbol/history` - Get historical market data
+- `GET /tradingview/symbols/:symbol/indicators` - Get technical indicators
+- `GET /tradingview/symbols/:symbol/analysis` - Get technical analysis summary
+- `POST /tradingview/screener` - Run stock screener with custom filters
+- `POST /tradingview/backtest` - Run TradingView-powered backtest
+- `GET /tradingview/backtest/:id` - Get TradingView backtest results
+- `POST /tradingview/subscribe/:symbol` - Subscribe to real-time data
+- `DELETE /tradingview/subscribe/:symbol` - Unsubscribe from real-time data
+
 ### WebSocket Real-time Updates
 
 Connect to `ws://localhost:3000` for real-time updates:
@@ -303,10 +336,16 @@ ws.on('message', (data) => {
 │ 🧠 Technical │ │📊Fundamental│ │ 📰 News/      │
 │ Analysis +   │ │ Analysis +  │ │ Sentiment +   │
 │ Claude AI +  │ │ Claude AI + │ │ Claude AI +   │
-│ Memory       │ │ Memory      │ │ Memory        │
+│ TradingView +│ │ TradingView │ │ TradingView + │
+│ Memory       │ │ + Memory    │ │ Memory        │
 └───────┬──────┘ └────┬────────┘ └──┬────────────┘
         │             │              │
         └─────────────┼──────────────┘
+                      │
+        ┌─────────────▼─────────────┐
+        │ 📈 TradingView Data Layer │
+        │ (Real-time + Historical)  │
+        └─────────────┬─────────────┘
                       │
         ┌─────────────▼─────────────┐
         │ 🧠 Intelligent Memory     │
@@ -333,18 +372,20 @@ ws.on('message', (data) => {
         └───────────────────────────┘
 ```
 
-### 🔄 Enhanced Data Flow with AI, A2A & Memory
-1. **Data Collection**: Market data, fundamental data, and news sentiment
+### 🔄 Enhanced Data Flow with AI, A2A, TradingView & Memory
+1. **TradingView Data Ingestion**: Professional-grade real-time and historical market data
 2. **A2A Agent Discovery**: Automatic discovery and registration of external agents
 3. **Memory Contextualization**: Agents retrieve relevant historical context and patterns
-4. **AI-Enhanced Analysis**: Each agent processes data using Claude AI with memory-driven insights
-5. **Cross-Agent Communication**: Agents share insights via A2A protocol
-6. **Intelligent Signal Fusion**: AI-powered fusion combining multiple sources with historical performance
-7. **Risk Evaluation**: AI-enhanced risk assessment with traditional constraints
-8. **Trade Execution**: Portfolio manager executes approved trades
-9. **Performance Feedback Loop**: Signal outcomes stored in memory for continuous learning
-10. **Memory-Based Adaptation**: Agents adapt strategies based on historical performance patterns
-11. **External Agent Integration**: Real-time collaboration with external A2A agents
+4. **TradingView-Enhanced Analysis**: Agents process high-quality TradingView data with technical indicators
+5. **AI-Enhanced Insights**: Claude AI analyzes TradingView data with memory-driven context
+6. **Cross-Agent Communication**: Agents share insights via A2A protocol
+7. **Intelligent Signal Fusion**: AI-powered fusion combining TradingView data, traditional algorithms, and historical performance
+8. **Risk Evaluation**: AI-enhanced risk assessment with traditional constraints
+9. **Trade Execution**: Portfolio manager executes approved trades
+10. **Performance Feedback Loop**: Signal outcomes stored in memory for continuous learning
+11. **TradingView Backtesting**: Strategy validation using TradingView's realistic market conditions
+12. **Memory-Based Adaptation**: Agents adapt strategies based on historical performance patterns
+13. **External Agent Integration**: Real-time collaboration with external A2A agents
 
 ### UI Architecture
 - **React-like Components**: Modular UI components with state management
@@ -358,15 +399,16 @@ ws.on('message', (data) => {
 ZergTrader includes comprehensive unit tests covering all major components and business logic.
 
 ### Test Coverage
-- **320+ test cases** covering core functionality and new AI/A2A/Memory features
+- **380+ test cases** covering core functionality and new AI/A2A/Memory/TradingView features
 - **Agent System**: BaseAgent, AgentManager with A2A protocol support
 - **AI Integration**: ClaudeClient with comprehensive LLM testing
 - **Memory System**: MemoryService with 36 comprehensive test cases covering storage, retrieval, and persistence
+- **TradingView Integration**: TradingViewClient and TradingViewDataService with 60+ test cases covering market data, indicators, backtesting, and real-time streaming
 - **A2A Protocol**: A2AService with agent discovery and communication
 - **Portfolio Management**: PortfolioManager with trade execution and performance tracking
 - **Risk Management**: RiskManager with position sizing and risk alerts
-- **Backtesting**: BacktestEngine with historical simulation and parameter sweeps
-- **Enhanced Agents**: Technical, Fundamental, and Fusion agents with AI capabilities
+- **Backtesting**: BacktestEngine with historical simulation and parameter sweeps, plus TradingView-powered backtesting
+- **Enhanced Agents**: Technical, Fundamental, and Fusion agents with AI and TradingView capabilities
 
 ### Run Unit Tests
 ```bash

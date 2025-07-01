@@ -1,26 +1,178 @@
 import { BaseAgent } from '../BaseAgent';
-import { AgentConfig, Signal, MarketData, TechnicalIndicator, Agent2AgentMessage } from '../../types';
+import { AgentConfig, Signal, MarketData, TechnicalIndicator, Agent2AgentMessage, TradingViewConfig } from '../../types';
 import { ClaudeAnalysisRequest } from '../../services/ClaudeClient';
+import { TradingViewDataService } from '../../services/TradingViewDataService';
 import { v4 as uuidv4 } from 'uuid';
 
 export class TrendFollowingAgent extends BaseAgent {
   private dataBuffer: Map<string, MarketData[]> = new Map();
   private indicatorBuffer: Map<string, TechnicalIndicator[]> = new Map();
+  private tradingViewService?: TradingViewDataService;
+  private enableTradingView: boolean;
+  private dataSubscriptions: Map<string, string> = new Map();
 
-  constructor(config: AgentConfig, enableClaude: boolean = true, enableMemory: boolean = true) {
+  constructor(
+    config: AgentConfig, 
+    enableClaude: boolean = true, 
+    enableMemory: boolean = true,
+    enableTradingView: boolean = false,
+    tradingViewConfig?: TradingViewConfig
+  ) {
     super(config, enableClaude, true, enableMemory);
+    this.enableTradingView = enableTradingView;
+    
+    if (enableTradingView) {
+      this.tradingViewService = new TradingViewDataService(tradingViewConfig);
+      this.setupTradingViewHandlers();
+    }
+  }
+
+  private setupTradingViewHandlers(): void {
+    if (!this.tradingViewService) return;
+
+    this.tradingViewService.on('realtimeUpdate', (data: MarketData) => {
+      this.updateMarketData(data.symbol, [data]);
+    });
+
+    this.tradingViewService.on('historicalDataLoaded', ({ symbol, data }) => {
+      this.updateMarketData(symbol, data);
+    });
+
+    this.tradingViewService.on('indicatorsLoaded', ({ symbol, indicator, data }) => {
+      this.updateIndicators(symbol, data);
+    });
+
+    this.tradingViewService.on('error', (error) => {
+      this.log('error', `TradingView service error: ${error}`);
+    });
   }
 
   protected async onStart(): Promise<void> {
     this.log('info', 'Trend Following Agent started');
-    // Subscribe to market data updates
-    this.emit('subscribe', { type: 'market-data', symbols: this.config.parameters.symbols || [] });
+    
+    if (this.enableTradingView && this.tradingViewService) {
+      try {
+        await this.tradingViewService.initialize();
+        this.log('info', 'TradingView service initialized');
+        
+        // Subscribe to TradingView data for configured symbols
+        const symbols = this.config.parameters.symbols || [];
+        for (const symbol of symbols) {
+          await this.subscribeToTradingViewData(symbol);
+        }
+      } catch (error) {
+        this.log('error', `Failed to initialize TradingView service: ${error}`);
+        // Fall back to traditional data sources
+        this.emit('subscribe', { type: 'market-data', symbols: this.config.parameters.symbols || [] });
+      }
+    } else {
+      // Subscribe to traditional market data updates
+      this.emit('subscribe', { type: 'market-data', symbols: this.config.parameters.symbols || [] });
+    }
   }
 
   protected async onStop(): Promise<void> {
     this.log('info', 'Trend Following Agent stopped');
+    
+    if (this.enableTradingView && this.tradingViewService) {
+      // Unsubscribe from all TradingView data
+      for (const [symbol, subscriptionId] of this.dataSubscriptions) {
+        this.tradingViewService.unsubscribeFromMarketData(subscriptionId);
+      }
+      this.dataSubscriptions.clear();
+      
+      await this.tradingViewService.disconnect();
+    }
+    
     this.dataBuffer.clear();
     this.indicatorBuffer.clear();
+  }
+
+  private async subscribeToTradingViewData(symbol: string): Promise<void> {
+    if (!this.tradingViewService) return;
+
+    try {
+      // Subscribe to real-time market data
+      const subscriptionId = this.tradingViewService.subscribeToMarketData(
+        symbol,
+        this.config.parameters.resolution || '1D',
+        (data: MarketData) => {
+          this.updateMarketData(symbol, [data]);
+        }
+      );
+      
+      this.dataSubscriptions.set(symbol, subscriptionId);
+
+      // Get initial historical data
+      const endDate = new Date();
+      const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000); // Last 30 days
+      
+      const historicalData = await this.tradingViewService.getHistoricalData(
+        symbol,
+        this.config.parameters.resolution || '1D',
+        startDate,
+        endDate
+      );
+
+      if (historicalData.length > 0) {
+        this.updateMarketData(symbol, historicalData);
+      }
+
+      // Get technical indicators
+      await this.loadTradingViewIndicators(symbol, startDate, endDate);
+
+      this.log('info', `Subscribed to TradingView data for ${symbol}`);
+    } catch (error) {
+      this.log('error', `Failed to subscribe to TradingView data for ${symbol}: ${error}`);
+    }
+  }
+
+  private async loadTradingViewIndicators(symbol: string, startDate: Date, endDate: Date): Promise<void> {
+    if (!this.tradingViewService) return;
+
+    const resolution = this.config.parameters.resolution || '1D';
+    const indicators = ['SMA', 'EMA', 'RSI', 'MACD'];
+
+    try {
+      for (const indicator of indicators) {
+        const period = this.config.parameters[`${indicator.toLowerCase()}_period`] || 14;
+        
+        const indicatorData = await this.tradingViewService.getTechnicalIndicators(
+          symbol,
+          indicator as any,
+          resolution,
+          period,
+          startDate,
+          endDate
+        );
+
+        if (indicatorData.length > 0) {
+          this.updateIndicators(symbol, indicatorData);
+        }
+      }
+    } catch (error) {
+      this.log('warn', `Failed to load indicators for ${symbol}: ${error}`);
+    }
+  }
+
+  private updateIndicators(symbol: string, indicators: TechnicalIndicator[]): void {
+    const existing = this.indicatorBuffer.get(symbol) || [];
+    const combined = [...existing, ...indicators];
+    
+    // Remove duplicates and sort by timestamp
+    const unique = combined.reduce((acc, indicator) => {
+      const key = `${indicator.name}_${indicator.timestamp.getTime()}`;
+      if (!acc.has(key)) {
+        acc.set(key, indicator);
+      }
+      return acc;
+    }, new Map<string, TechnicalIndicator>());
+
+    const sorted = Array.from(unique.values()).sort((a, b) => 
+      a.timestamp.getTime() - b.timestamp.getTime()
+    );
+
+    this.indicatorBuffer.set(symbol, sorted);
   }
 
   protected onMessage(message: Agent2AgentMessage): void {
