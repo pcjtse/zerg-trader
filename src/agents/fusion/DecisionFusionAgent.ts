@@ -1,5 +1,6 @@
 import { BaseAgent } from '../BaseAgent';
 import { AgentConfig, Signal, Agent2AgentMessage } from '../../types';
+import { ClaudeAnalysisRequest } from '../../services/ClaudeClient';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AgentPerformance {
@@ -33,8 +34,8 @@ export class DecisionFusionAgent extends BaseAgent {
   private readonly signalExpiryMs = 5 * 60 * 1000; // 5 minutes
   private readonly minSignalsForFusion = 2;
 
-  constructor(config: AgentConfig) {
-    super(config);
+  constructor(config: AgentConfig, enableClaude: boolean = true) {
+    super(config, enableClaude, true);
     this.initializeAgentPerformances();
   }
 
@@ -65,6 +66,29 @@ export class DecisionFusionAgent extends BaseAgent {
     }
   }
 
+  protected async onA2AMessage(message: any): Promise<void> {
+    if (message.payload?.signal) {
+      this.handleIncomingSignal(message.payload.signal);
+    } else if (message.payload?.signals) {
+      // Handle batch signal processing
+      for (const signal of message.payload.signals) {
+        this.handleIncomingSignal(signal);
+      }
+    } else if (message.payload?.fusionRequest) {
+      // Handle external fusion requests
+      const { symbol, signals } = message.payload.fusionRequest;
+      const fusedSignal = await this.fuseSignalsForSymbol(symbol, signals);
+      
+      if (fusedSignal && this.a2aService) {
+        await this.sendA2AMessage(message.from, 'fusionResult', {
+          requestId: message.id,
+          fusedSignal,
+          inputSignals: signals.length
+        });
+      }
+    }
+  }
+
   public async analyze(data: { signals: Signal[] }): Promise<Signal[]> {
     const { signals } = data;
     
@@ -81,11 +105,57 @@ export class DecisionFusionAgent extends BaseAgent {
       if (fusedSignal) {
         fusedSignals.push(fusedSignal);
         this.emitSignal(fusedSignal);
+        
+        // Broadcast fused signal via A2A protocol
+        if (this.a2aService) {
+          await this.broadcastSignal(fusedSignal);
+        }
       }
     }
 
     this.lastUpdate = new Date();
     return fusedSignals;
+  }
+
+  protected getCapabilities(): string[] {
+    return [
+      'signal-fusion',
+      'decision-making',
+      'ml-ensemble',
+      'agent-performance-tracking',
+      'signal-aggregation',
+      'consensus-building'
+    ];
+  }
+
+  protected getMethodInfo() {
+    return [
+      {
+        name: 'analyze',
+        description: 'Fuse multiple signals into consensus decisions',
+        parameters: {
+          signals: 'Signal[]'
+        },
+        returns: { signals: 'Signal[]' }
+      },
+      {
+        name: 'fuseSignalsForSymbol',
+        description: 'Fuse signals for a specific symbol',
+        parameters: {
+          symbol: 'string',
+          signals: 'Signal[]'
+        },
+        returns: { signal: 'Signal' }
+      },
+      {
+        name: 'updateAgentPerformance',
+        description: 'Update performance metrics for an agent',
+        parameters: {
+          agentId: 'string',
+          performance: 'AgentPerformance'
+        }
+      }
+    ];
   }
 
   private handleIncomingSignal(signal: Signal): void {

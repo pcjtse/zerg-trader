@@ -114,6 +114,52 @@ export interface BacktestResult {
   trades: Trade[];
 }
 
+export interface A2AMessage {
+  jsonrpc: '2.0';
+  method: string;
+  params?: any;
+  id?: string | number;
+}
+
+export interface A2AResponse {
+  jsonrpc: '2.0';
+  result?: any;
+  error?: {
+    code: number;
+    message: string;
+    data?: any;
+  };
+  id?: string | number;
+}
+
+export interface A2AAgentCard {
+  name: string;
+  description: string;
+  version: string;
+  capabilities: string[];
+  endpoint: string;
+  methods: A2AMethodInfo[];
+  metadata?: Record<string, any>;
+}
+
+export interface A2AMethodInfo {
+  name: string;
+  description: string;
+  parameters: Record<string, any>;
+  returns?: Record<string, any>;
+}
+
+export interface A2ATask {
+  id: string;
+  method: string;
+  params: any;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  result?: any;
+  error?: any;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface Agent2AgentMessage {
   from: string;
   to: string;

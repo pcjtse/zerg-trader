@@ -1,5 +1,10 @@
 import { BaseAgent } from '../../src/agents/BaseAgent';
-import { AgentConfig, Agent2AgentMessage, Signal } from '../../src/types';
+import { AgentConfig, Agent2AgentMessage, Signal, A2AAgentCard } from '../../src/types';
+import { ClaudeClient } from '../../src/services/ClaudeClient';
+
+// Mock Claude client
+jest.mock('../../src/services/ClaudeClient');
+jest.mock('../../src/services/A2AService');
 
 // Mock implementation of BaseAgent for testing
 class TestAgent extends BaseAgent {
@@ -15,6 +20,23 @@ class TestAgent extends BaseAgent {
   
   protected onMessage(message: Agent2AgentMessage): void {
     // Mock implementation
+  }
+
+  protected async onA2AMessage(message: any): Promise<void> {
+    // Mock implementation
+  }
+
+  protected getCapabilities(): string[] {
+    return ['test-capability'];
+  }
+
+  protected getMethodInfo() {
+    return [{
+      name: 'analyze',
+      description: 'Test analysis method',
+      parameters: { data: 'any' },
+      returns: { signals: 'Signal[]' }
+    }];
   }
   
   public async analyze(data: any): Promise<Signal[]> {
@@ -52,7 +74,7 @@ describe('BaseAgent', () => {
       parameters: { param1: 'value1' },
       weight: 0.5
     };
-    agent = new TestAgent(config);
+    agent = new TestAgent(config, false, false); // Disable Claude and A2A for basic tests
   });
 
   describe('Constructor and Getters', () => {
@@ -62,6 +84,21 @@ describe('BaseAgent', () => {
       expect(agent.getType()).toBe('TECHNICAL');
       expect(agent.isEnabled()).toBe(true);
       expect(agent.getWeight()).toBe(0.5);
+    });
+
+    it('should create agent card with correct structure', () => {
+      const agentCard = agent.getAgentCard();
+      expect(agentCard).toEqual(expect.objectContaining({
+        name: 'Test Agent',
+        description: expect.stringContaining('TECHNICAL analysis agent'),
+        version: '1.0.0',
+        capabilities: ['test-capability'],
+        endpoint: expect.stringMatching(/^http:\/\/localhost:\d+$/),
+        methods: expect.arrayContaining([expect.objectContaining({
+          name: 'analyze',
+          description: 'Test analysis method'
+        })])
+      }));
     });
 
     it('should return a copy of config', () => {
@@ -276,6 +313,40 @@ describe('BaseAgent', () => {
       const result = await agent.analyze({ test: 'data' });
       
       expect(result).toEqual(expectedSignals);
+    });
+  });
+
+  describe('A2A Integration', () => {
+    let agentWithA2A: TestAgent;
+
+    beforeEach(() => {
+      agentWithA2A = new TestAgent(config, false, true); // Enable A2A, disable Claude
+    });
+
+    it('should have agent card when A2A is enabled', () => {
+      const agentCard = agentWithA2A.getAgentCard();
+      expect(agentCard).toBeDefined();
+      expect(agentCard.name).toBe('Test Agent');
+      expect(agentCard.capabilities).toContain('test-capability');
+    });
+
+    it('should return empty connected agents list initially', () => {
+      const connectedAgents = agentWithA2A.getConnectedAgents();
+      expect(connectedAgents).toEqual([]);
+    });
+  });
+
+  describe('Claude Integration', () => {
+    let agentWithClaude: TestAgent;
+    let mockClaudeClient: jest.Mocked<ClaudeClient>;
+
+    beforeEach(() => {
+      agentWithClaude = new TestAgent(config, true, false); // Enable Claude, disable A2A
+      mockClaudeClient = new ClaudeClient() as jest.Mocked<ClaudeClient>;
+    });
+
+    it('should have Claude client when enabled', () => {
+      expect(agentWithClaude['claudeClient']).toBeDefined();
     });
   });
 });

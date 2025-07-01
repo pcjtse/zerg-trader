@@ -1,6 +1,10 @@
 import { TrendFollowingAgent } from '../../../src/agents/technical/TrendFollowingAgent';
 import { AgentConfig, MarketData, TechnicalIndicator } from '../../../src/types';
 
+// Mock Claude and A2A services
+jest.mock('../../../src/services/ClaudeClient');
+jest.mock('../../../src/services/A2AService');
+
 describe('TrendFollowingAgent', () => {
   let agent: TrendFollowingAgent;
   let config: AgentConfig;
@@ -25,7 +29,7 @@ describe('TrendFollowingAgent', () => {
       weight: 1.0
     };
 
-    agent = new TrendFollowingAgent(config);
+    agent = new TrendFollowingAgent(config, false); // Disable Claude for basic tests
 
     // Create mock market data (60 days for sufficient trend analysis)
     mockMarketData = [];

@@ -147,7 +147,7 @@ describe('DecisionFusionAgent', () => {
     it('should generate fused signals with sufficient input signals', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       expect(Array.isArray(signals)).toBe(true);
@@ -172,7 +172,7 @@ describe('DecisionFusionAgent', () => {
     it('should return empty array with insufficient signals', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: [mockSignals[0]] // Only one signal
+        signals: [mockSignals[0]] // Only one signal
       });
       
       expect(signals).toEqual([]);
@@ -181,7 +181,7 @@ describe('DecisionFusionAgent', () => {
     it('should perform weighted fusion correctly', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       const weightedSignals = signals.filter(s => 
@@ -200,7 +200,7 @@ describe('DecisionFusionAgent', () => {
     it('should perform voting fusion correctly', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       const votingSignals = signals.filter(s => 
@@ -219,7 +219,7 @@ describe('DecisionFusionAgent', () => {
     it('should perform ML ensemble fusion', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       const mlSignals = signals.filter(s => 
@@ -255,7 +255,7 @@ describe('DecisionFusionAgent', () => {
       
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: conflictingSignals
+        signals: conflictingSignals
       });
       
       expect(signals.length).toBeGreaterThan(0);
@@ -274,7 +274,7 @@ describe('DecisionFusionAgent', () => {
     it('should perform meta-fusion when enabled', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       // Should generate meta-fusion signal that combines other fusion methods
@@ -305,7 +305,7 @@ describe('DecisionFusionAgent', () => {
       
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mixedSignals
+        signals: mixedSignals
       });
       
       // Should still generate signals but with fewer input signals
@@ -322,7 +322,7 @@ describe('DecisionFusionAgent', () => {
       for (let i = 0; i < 3; i++) {
         await agent.analyze({
           symbol: 'AAPL',
-          inputSignals: mockSignals
+          signals: mockSignals
         });
       }
       
@@ -437,7 +437,7 @@ describe('DecisionFusionAgent', () => {
       // With only 3 signals, should not generate fusion signals
       const signals = await customAgent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals.slice(0, 3)
+        signals: mockSignals.slice(0, 3)
       });
       
       expect(signals).toEqual([]);
@@ -459,7 +459,7 @@ describe('DecisionFusionAgent', () => {
       
       const signals = await customAgent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       // Should generate fewer signals due to high confidence threshold
@@ -507,7 +507,7 @@ describe('DecisionFusionAgent', () => {
       
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       expect(signals.length).toBeGreaterThan(0);
@@ -528,7 +528,7 @@ describe('DecisionFusionAgent', () => {
       
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: unanimousSignals
+        signals: unanimousSignals
       });
       
       expect(signals.length).toBeGreaterThan(0);
@@ -554,7 +554,7 @@ describe('DecisionFusionAgent', () => {
       
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: majoritySignals
+        signals: majoritySignals
       });
       
       const votingSignals = signals.filter(s => 
@@ -583,7 +583,7 @@ describe('DecisionFusionAgent', () => {
     it('should include comprehensive metadata', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       signals.forEach(signal => {
@@ -601,7 +601,7 @@ describe('DecisionFusionAgent', () => {
     it('should provide detailed fusion reasoning', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       signals.forEach(signal => {
@@ -622,7 +622,7 @@ describe('DecisionFusionAgent', () => {
     it('should maintain signal traceability', async () => {
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        inputSignals: mockSignals
+        signals: mockSignals
       });
       
       signals.forEach(signal => {

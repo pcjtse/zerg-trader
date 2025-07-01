@@ -19,7 +19,11 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@a2a-js/sdk$': '<rootDir>/tests/__mocks__/@a2a-js/sdk.js'
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(@a2a-js/sdk)/)',
+  ],
   testTimeout: 10000
 };

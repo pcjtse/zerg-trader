@@ -1,12 +1,17 @@
 import { AgentManager } from '../../src/agents/AgentManager';
 import { BaseAgent } from '../../src/agents/BaseAgent';
-import { AgentConfig, Agent2AgentMessage, Signal } from '../../src/types';
+import { AgentConfig, Agent2AgentMessage, Signal, A2AAgentCard } from '../../src/types';
+
+// Mock A2A Service
+jest.mock('../../src/services/A2AService');
+jest.mock('../../src/services/ClaudeClient');
 
 // Mock Agent implementation for testing
 class MockAgent extends BaseAgent {
   public started = false;
   public stopped = false;
   public receivedMessages: Agent2AgentMessage[] = [];
+  public a2aMessages: any[] = [];
 
   protected async onStart(): Promise<void> {
     this.started = true;
@@ -18,6 +23,23 @@ class MockAgent extends BaseAgent {
 
   protected onMessage(message: Agent2AgentMessage): void {
     this.receivedMessages.push(message);
+  }
+
+  protected async onA2AMessage(message: any): Promise<void> {
+    this.a2aMessages.push(message);
+  }
+
+  protected getCapabilities(): string[] {
+    return ['mock-capability'];
+  }
+
+  protected getMethodInfo() {
+    return [{
+      name: 'analyze',
+      description: 'Mock analysis method',
+      parameters: { data: 'any' },
+      returns: { signals: 'Signal[]' }
+    }];
   }
 
   public async analyze(data: any): Promise<Signal[]> {
@@ -46,7 +68,7 @@ describe('AgentManager', () => {
   let config2: AgentConfig;
 
   beforeEach(() => {
-    agentManager = new AgentManager();
+    agentManager = new AgentManager(); // Will use mocked A2AService
     
     config1 = {
       id: 'agent-1',
@@ -66,8 +88,8 @@ describe('AgentManager', () => {
       weight: 0.8
     };
     
-    agent1 = new MockAgent(config1);
-    agent2 = new MockAgent(config2);
+    agent1 = new MockAgent(config1, false, false); // Disable Claude and A2A for basic tests
+    agent2 = new MockAgent(config2, false, false);
   });
 
   describe('Agent Registration', () => {
@@ -346,6 +368,36 @@ describe('AgentManager', () => {
     it('should throw error when updating non-existent agent', () => {
       expect(() => agentManager.updateAgentConfig('non-existent', { name: 'Test' }))
         .toThrow('Agent with ID non-existent not found');
+    });
+  });
+
+  describe('A2A Integration', () => {
+    beforeEach(() => {
+      agentManager.registerAgent(agent1);
+    });
+
+    it('should have A2A service initialized', () => {
+      const a2aService = agentManager.getA2AService();
+      expect(a2aService).toBeDefined();
+    });
+
+    it('should get external agents list', () => {
+      const externalAgents = agentManager.getExternalAgents();
+      expect(Array.isArray(externalAgents)).toBe(true);
+    });
+
+    it('should emit agent card updated event when config changes', () => {
+      const mockListener = jest.fn();
+      agentManager.on('agentCardUpdated', mockListener);
+      
+      agentManager.updateAgentConfig('agent-1', { name: 'Updated Agent' });
+      
+      expect(mockListener).toHaveBeenCalledWith(expect.objectContaining({
+        agentId: 'agent-1',
+        agentCard: expect.objectContaining({
+          name: 'Updated Agent'
+        })
+      }));
     });
   });
 });

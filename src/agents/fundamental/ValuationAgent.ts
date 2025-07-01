@@ -1,13 +1,13 @@
 import { BaseAgent } from '../BaseAgent';
-import { AgentConfig, Signal, FundamentalData, MarketData } from '../../types';
+import { AgentConfig, Signal, FundamentalData, MarketData, Agent2AgentMessage } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class ValuationAgent extends BaseAgent {
   private fundamentalDataBuffer: Map<string, FundamentalData> = new Map();
   private marketDataBuffer: Map<string, MarketData[]> = new Map();
 
-  constructor(config: AgentConfig) {
-    super(config);
+  constructor(config: AgentConfig, enableClaude: boolean = false) {
+    super(config, enableClaude, true);
   }
 
   protected async onStart(): Promise<void> {
@@ -24,7 +24,17 @@ export class ValuationAgent extends BaseAgent {
     this.marketDataBuffer.clear();
   }
 
-  protected onMessage(message: any): void {
+  protected onMessage(message: Agent2AgentMessage): void {
+    if (message.type === 'DATA') {
+      if (message.payload.type === 'fundamental-data') {
+        this.updateFundamentalData(message.payload.symbol, message.payload.data);
+      } else if (message.payload.type === 'market-data') {
+        this.updateMarketData(message.payload.symbol, message.payload.data);
+      }
+    }
+  }
+
+  protected async onA2AMessage(message: any): Promise<void> {
     if (message.type === 'DATA') {
       if (message.payload.type === 'fundamental-data') {
         this.updateFundamentalData(message.payload.symbol, message.payload.data);
@@ -70,6 +80,41 @@ export class ValuationAgent extends BaseAgent {
 
     this.lastUpdate = new Date();
     return signals;
+  }
+
+  protected getCapabilities(): string[] {
+    return [
+      'fundamental-analysis',
+      'valuation-metrics',
+      'financial-ratios',
+      'pe-analysis',
+      'debt-analysis',
+      'profitability-analysis'
+    ];
+  }
+
+  protected getMethodInfo() {
+    return [
+      {
+        name: 'analyze',
+        description: 'Perform fundamental valuation analysis',
+        parameters: {
+          symbol: 'string',
+          fundamentalData: 'FundamentalData',
+          marketData: 'MarketData[]'
+        },
+        returns: { signals: 'Signal[]' }
+      },
+      {
+        name: 'calculateValuationMetrics',
+        description: 'Calculate key valuation metrics',
+        parameters: {
+          symbol: 'string',
+          fundamentalData: 'FundamentalData'
+        },
+        returns: { metrics: 'ValuationMetrics' }
+      }
+    ];
   }
 
   private analyzePERatio(symbol: string, fundamentalData: FundamentalData, currentPrice: number): Signal | null {

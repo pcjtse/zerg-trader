@@ -1,13 +1,14 @@
 import { BaseAgent } from '../BaseAgent';
-import { AgentConfig, Signal, MarketData, TechnicalIndicator } from '../../types';
+import { AgentConfig, Signal, MarketData, TechnicalIndicator, Agent2AgentMessage } from '../../types';
+import { ClaudeAnalysisRequest } from '../../services/ClaudeClient';
 import { v4 as uuidv4 } from 'uuid';
 
 export class TrendFollowingAgent extends BaseAgent {
   private dataBuffer: Map<string, MarketData[]> = new Map();
   private indicatorBuffer: Map<string, TechnicalIndicator[]> = new Map();
 
-  constructor(config: AgentConfig) {
-    super(config);
+  constructor(config: AgentConfig, enableClaude: boolean = true) {
+    super(config, enableClaude, true);
   }
 
   protected async onStart(): Promise<void> {
@@ -22,9 +23,27 @@ export class TrendFollowingAgent extends BaseAgent {
     this.indicatorBuffer.clear();
   }
 
-  protected onMessage(message: any): void {
+  protected onMessage(message: Agent2AgentMessage): void {
     if (message.type === 'DATA' && message.payload.type === 'market-data') {
       this.updateMarketData(message.payload.symbol, message.payload.data);
+    }
+  }
+
+  protected async onA2AMessage(message: any): Promise<void> {
+    if (message.payload?.type === 'market-data') {
+      this.updateMarketData(message.payload.symbol, message.payload.data);
+    } else if (message.payload?.analysisRequest) {
+      const { symbol, data } = message.payload.analysisRequest;
+      const signals = await this.analyze({ symbol, marketData: data, indicators: [] });
+      
+      // Send results back via A2A
+      if (this.a2aService) {
+        await this.sendA2AMessage(message.from, 'analysisResult', {
+          requestId: message.id,
+          signals,
+          agent: this.config.name
+        });
+      }
     }
   }
 
@@ -35,12 +54,50 @@ export class TrendFollowingAgent extends BaseAgent {
       return []; // Need sufficient data for trend analysis
     }
 
-    const signals: Signal[] = [];
-    
     // Update internal buffers
     this.dataBuffer.set(symbol, marketData);
     this.indicatorBuffer.set(symbol, indicators);
 
+    // Get traditional technical analysis signals
+    const technicalSignals = await this.getTechnicalSignals(symbol, marketData, indicators);
+
+    // Enhance with Claude analysis if available
+    let enhancedSignals = technicalSignals;
+    if (this.claudeClient) {
+      try {
+        const claudeRequest: ClaudeAnalysisRequest = {
+          type: 'technical',
+          data: marketData,
+          symbol,
+          context: `Trend following analysis for ${symbol}. Technical indicators: ${indicators.map(i => `${i.name}=${i.value}`).join(', ')}`
+        };
+        
+        const claudeSignals = await this.analyzeWithClaude(claudeRequest);
+        enhancedSignals = this.combineSignals(technicalSignals, claudeSignals);
+      } catch (error) {
+        this.log('warn', `Claude analysis failed for ${symbol}: ${error}`);
+      }
+    }
+
+    // Generate composite trend signal
+    const compositeSignal = this.generateCompositeSignal(symbol, enhancedSignals);
+    if (compositeSignal) {
+      enhancedSignals.push(compositeSignal);
+      this.emitSignal(compositeSignal);
+      
+      // Broadcast signal via A2A protocol
+      if (this.a2aService) {
+        await this.broadcastSignal(compositeSignal);
+      }
+    }
+
+    this.lastUpdate = new Date();
+    return enhancedSignals;
+  }
+
+  private async getTechnicalSignals(symbol: string, marketData: MarketData[], indicators: TechnicalIndicator[]): Promise<Signal[]> {
+    const signals: Signal[] = [];
+    
     // Analyze different trend indicators
     const smaSignal = this.analyzeSMASignal(symbol, indicators);
     const emaSignal = this.analyzeEMASignal(symbol, indicators);
@@ -53,15 +110,29 @@ export class TrendFollowingAgent extends BaseAgent {
     if (macdSignal) signals.push(macdSignal);
     if (momentumSignal) signals.push(momentumSignal);
 
-    // Generate composite trend signal
-    const compositeSignal = this.generateCompositeSignal(symbol, signals);
-    if (compositeSignal) {
-      signals.push(compositeSignal);
-      this.emitSignal(compositeSignal);
-    }
-
-    this.lastUpdate = new Date();
     return signals;
+  }
+
+  private combineSignals(technicalSignals: Signal[], claudeSignals: Signal[]): Signal[] {
+    const combined = [...technicalSignals];
+    
+    // Add Claude signals with adjusted confidence to account for LLM uncertainty
+    claudeSignals.forEach(claudeSignal => {
+      // Reduce Claude confidence slightly to account for model uncertainty
+      const adjustedSignal = {
+        ...claudeSignal,
+        confidence: claudeSignal.confidence * 0.9,
+        reasoning: `Claude Analysis: ${claudeSignal.reasoning}`,
+        metadata: {
+          ...claudeSignal.metadata,
+          source: 'claude',
+          originalConfidence: claudeSignal.confidence
+        }
+      };
+      combined.push(adjustedSignal);
+    });
+    
+    return combined;
   }
 
   private analyzeSMASignal(symbol: string, indicators: TechnicalIndicator[]): Signal | null {
@@ -310,5 +381,51 @@ export class TrendFollowingAgent extends BaseAgent {
     this.dataBuffer.set(symbol, data);
     // Trigger analysis when new data arrives
     this.analyze({ symbol, marketData: data, indicators: this.indicatorBuffer.get(symbol) || [] });
+  }
+
+  protected getCapabilities(): string[] {
+    return [
+      'trend-analysis',
+      'sma-analysis',
+      'ema-analysis',
+      'macd-analysis',
+      'momentum-analysis',
+      'composite-signals',
+      'real-time-analysis',
+      'claude-enhanced-analysis'
+    ];
+  }
+
+  protected getMethodInfo() {
+    return [
+      {
+        name: 'analyze',
+        description: 'Perform comprehensive trend following analysis',
+        parameters: {
+          symbol: 'string',
+          marketData: 'MarketData[]',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signals: 'Signal[]' }
+      },
+      {
+        name: 'getTechnicalSignals',
+        description: 'Get traditional technical analysis signals',
+        parameters: {
+          symbol: 'string',
+          marketData: 'MarketData[]',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signals: 'Signal[]' }
+      },
+      {
+        name: 'analyzeWithClaude',
+        description: 'Enhance analysis with Claude AI insights',
+        parameters: {
+          request: 'ClaudeAnalysisRequest'
+        },
+        returns: { signals: 'Signal[]' }
+      }
+    ];
   }
 }

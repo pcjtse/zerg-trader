@@ -1,13 +1,13 @@
 import { BaseAgent } from '../BaseAgent';
-import { AgentConfig, Signal, MarketData, TechnicalIndicator } from '../../types';
+import { AgentConfig, Signal, MarketData, TechnicalIndicator, Agent2AgentMessage } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class MeanReversionAgent extends BaseAgent {
   private dataBuffer: Map<string, MarketData[]> = new Map();
   private indicatorBuffer: Map<string, TechnicalIndicator[]> = new Map();
 
-  constructor(config: AgentConfig) {
-    super(config);
+  constructor(config: AgentConfig, enableClaude: boolean = false) {
+    super(config, enableClaude, true);
   }
 
   protected async onStart(): Promise<void> {
@@ -21,8 +21,14 @@ export class MeanReversionAgent extends BaseAgent {
     this.indicatorBuffer.clear();
   }
 
-  protected onMessage(message: any): void {
+  protected onMessage(message: Agent2AgentMessage): void {
     if (message.type === 'DATA' && message.payload.type === 'market-data') {
+      this.updateMarketData(message.payload.symbol, message.payload.data);
+    }
+  }
+
+  protected async onA2AMessage(message: any): Promise<void> {
+    if (message.payload?.type === 'market-data') {
       this.updateMarketData(message.payload.symbol, message.payload.data);
     }
   }
@@ -328,5 +334,39 @@ export class MeanReversionAgent extends BaseAgent {
   private updateMarketData(symbol: string, data: MarketData[]): void {
     this.dataBuffer.set(symbol, data);
     this.analyze({ symbol, marketData: data, indicators: this.indicatorBuffer.get(symbol) || [] });
+  }
+
+  protected getCapabilities(): string[] {
+    return [
+      'mean-reversion-analysis',
+      'bollinger-bands',
+      'rsi-analysis',
+      'statistical-arbitrage',
+      'overbought-oversold-detection'
+    ];
+  }
+
+  protected getMethodInfo() {
+    return [
+      {
+        name: 'analyze',
+        description: 'Perform mean reversion analysis',
+        parameters: {
+          symbol: 'string',
+          marketData: 'MarketData[]',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signals: 'Signal[]' }
+      },
+      {
+        name: 'analyzeBollingerBands',
+        description: 'Analyze Bollinger Bands for mean reversion signals',
+        parameters: {
+          symbol: 'string',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signal: 'Signal' }
+      }
+    ];
   }
 }
