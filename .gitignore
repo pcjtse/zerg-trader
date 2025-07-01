@@ -105,6 +105,7 @@ Thumbs.db
 
 # Claude Code settings
 .claude/settings.local.json
+CLAUDE.md
 
 # Trading data and backtest results
 data/
