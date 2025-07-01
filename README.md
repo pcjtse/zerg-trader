@@ -1039,14 +1039,6 @@ This software and its documentation do not constitute investment advice, financi
 - **Optimized AI Usage**: Smart API usage to minimize costs
 - **Improved Monitoring**: Real-time A2A network status
 
-## 📞 Support
-
-For questions, issues, or contributions:
-- Open an issue on GitHub
-- Check the documentation in `CLAUDE.md`
-- Review the A2A protocol specifications
-- Consult the Claude AI integration guide
-
 ---
 
 **Built with ❤️ for the future of algorithmic trading**
