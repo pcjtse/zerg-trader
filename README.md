@@ -85,7 +85,7 @@ ALPACA_SECRET_KEY=your_alpaca_secret
 ALPACA_BASE_URL=https://paper-api.alpaca.markets
 
 # System Configuration
-WATCHED_SYMBOLS=AAPL,MSFT,GOOGL,TSLA,AMZN
+WATCHED_SYMBOLS=AAPL,MSFT,GOOGL,TSLA,AMZN,NVDA
 MAX_POSITION_SIZE=0.1        # 10% max position size
 STOP_LOSS_PERCENTAGE=0.02    # 2% stop loss
 AUTO_START=false             # Auto-start trading system
