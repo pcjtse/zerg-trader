@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { BaseAgent } from './BaseAgent';
 import { Agent2AgentMessage, AgentConfig, A2AAgentCard, A2AMessage, A2AResponse } from '../types';
 import { A2AService, A2AServiceConfig } from '../services/A2AService';
+import { MemoryService } from '../services/MemoryService';
 
 export class AgentManager extends EventEmitter {
   private agents: Map<string, BaseAgent> = new Map();
@@ -9,10 +10,12 @@ export class AgentManager extends EventEmitter {
   private maxHistorySize: number = 1000;
   private a2aService!: A2AService;
   private registryEndpoint?: string;
+  private memoryService: MemoryService;
 
-  constructor(registryEndpoint?: string) {
+  constructor(registryEndpoint?: string, memoryService?: MemoryService) {
     super();
     this.registryEndpoint = registryEndpoint;
+    this.memoryService = memoryService || new MemoryService();
     this.initializeA2AService();
   }
 
@@ -230,6 +233,11 @@ export class AgentManager extends EventEmitter {
     if (this.a2aService) {
       await this.a2aService.stop();
     }
+    
+    // Clean up memory service
+    if (this.memoryService) {
+      this.memoryService.destroy();
+    }
   }
 
   public async startAgent(agentId: string): Promise<void> {
@@ -335,6 +343,24 @@ export class AgentManager extends EventEmitter {
       const updatedCard = agent.getAgentCard();
       this.emit('agentCardUpdated', { agentId, agentCard: updatedCard });
     }
+  }
+
+  public getMemoryService(): MemoryService {
+    return this.memoryService;
+  }
+
+  public async getSystemMemoryStats(): Promise<any> {
+    return await this.memoryService.getMemoryStats();
+  }
+
+  public async clearAllMemories(): Promise<void> {
+    await this.memoryService.clearMemories();
+    this.emit('memoriesCleared');
+  }
+
+  public async clearAgentMemory(agentId: string): Promise<void> {
+    await this.memoryService.clearMemories(agentId);
+    this.emit('agentMemoryCleared', agentId);
   }
 
   public getA2AService(): A2AService {

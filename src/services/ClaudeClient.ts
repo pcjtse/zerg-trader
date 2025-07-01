@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Signal, MarketData, TechnicalIndicator, FundamentalData, NewsData } from '../types';
+import { MemoryService } from './MemoryService';
 
 export interface ClaudeAnalysisRequest {
   type: 'technical' | 'fundamental' | 'news' | 'fusion';
@@ -19,11 +20,13 @@ export interface ClaudeAnalysisResponse {
 export class ClaudeClient {
   private client: Anthropic;
   private model: string = 'claude-3-5-sonnet-20241022';
+  private memoryService?: MemoryService;
 
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, memoryService?: MemoryService) {
     this.client = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
     });
+    this.memoryService = memoryService;
   }
 
   async analyzeMarketData(request: ClaudeAnalysisRequest): Promise<ClaudeAnalysisResponse> {
@@ -171,5 +174,81 @@ Guidelines:
       console.error('Claude connection validation failed:', error);
       return false;
     }
+  }
+
+  public async updateMemoryWithFeedback(
+    agentId: string,
+    signalId: string,
+    actualOutcome: {
+      priceMovement: number;
+      timeToTarget: number;
+      accuracy: number;
+    },
+    feedback: string
+  ): Promise<void> {
+    if (!this.memoryService) return;
+
+    try {
+      // Find the original signal in memory
+      const memories = await this.memoryService.retrieveMemories({
+        agentId,
+        type: 'analysis_history' as any,
+        limit: 50
+      });
+
+      const relevantMemory = memories.find(memory => 
+        memory.content.output?.some((signal: Signal) => signal.id === signalId)
+      );
+
+      if (relevantMemory) {
+        const signal = relevantMemory.content.output.find((s: Signal) => s.id === signalId);
+        if (signal) {
+          // Store performance feedback
+          await this.memoryService.storePerformanceFeedback(
+            agentId,
+            {
+              signalId,
+              predicted: signal,
+              actual: actualOutcome,
+              feedback,
+              adjustments: this.generateAdjustments(signal, actualOutcome)
+            },
+            0.9 // High importance for performance feedback
+          );
+
+          // Update the original memory's importance based on accuracy
+          const newImportance = relevantMemory.importance * (0.5 + actualOutcome.accuracy * 0.5);
+          await this.memoryService.updateMemoryImportance(relevantMemory.id, newImportance);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update memory with feedback:', error);
+    }
+  }
+
+  private generateAdjustments(predicted: Signal, actual: any): string[] {
+    const adjustments: string[] = [];
+
+    if (actual.accuracy < 0.5) {
+      adjustments.push(`Low accuracy (${actual.accuracy}%) - review ${predicted.action} signal criteria`);
+    }
+
+    if (Math.abs(actual.priceMovement) < 0.01) {
+      adjustments.push('Minimal price movement - consider higher volatility threshold');
+    }
+
+    if (predicted.confidence > 0.8 && actual.accuracy < 0.6) {
+      adjustments.push('Overconfident prediction - be more conservative with confidence scores');
+    }
+
+    if (predicted.confidence < 0.5 && actual.accuracy > 0.8) {
+      adjustments.push('Underconfident prediction - similar patterns may warrant higher confidence');
+    }
+
+    return adjustments;
+  }
+
+  public setMemoryService(memoryService: MemoryService): void {
+    this.memoryService = memoryService;
   }
 }

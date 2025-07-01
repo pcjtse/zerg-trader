@@ -7,6 +7,7 @@ A next-generation multi-agent trading system powered by **Google's Agent2Agent (
 ### 🤖 AI-Enhanced Multi-Agent Architecture
 - **Claude AI Integration**: Advanced LLM-powered market analysis and decision support
 - **Agent2Agent Protocol**: Full compliance with Google's A2A standard for cross-platform agent communication
+- **Intelligent Memory System**: Context-aware agent memory for adaptive learning and performance improvement
 - **Technical Analysis Agents**: Enhanced with Claude AI for intelligent trend analysis and pattern recognition
 - **Fundamental Analysis Agents**: AI-powered valuation models and financial strength assessment
 - **Decision Fusion Agent**: Intelligent signal fusion combining traditional algorithms with AI insights
@@ -22,12 +23,28 @@ A next-generation multi-agent trading system powered by **Google's Agent2Agent (
 
 ### 🧠 AI-Powered Analytics
 - **Claude-Enhanced Technical Analysis**: AI-powered interpretation of technical indicators
+- **Memory-Driven Insights**: Context-aware analysis using historical market patterns and performance feedback
+- **Adaptive Learning**: Agents continuously improve through performance tracking and memory-based feedback loops
 - **Intelligent Pattern Recognition**: Advanced ML-based market pattern detection
 - **Smart Signal Fusion**: AI-optimized combination of multiple analysis sources
 - **Technical Indicators**: SMA, EMA, RSI, MACD, Bollinger Bands, VWAP, Fibonacci retracements
 - **Fundamental Analysis**: AI-enhanced DCF valuation, P/E ratios, debt analysis, profitability metrics
 - **Risk Metrics**: VaR, Sharpe ratio, Sortino ratio, maximum drawdown, beta/alpha calculation
 - **AI Sentiment Analysis**: Advanced natural language processing for market sentiment
+
+### 🧠 Intelligent Memory System
+- **Context-Aware Storage**: Agents store market context, analysis history, and performance feedback
+- **Relevance-Based Retrieval**: Smart memory retrieval based on market conditions and analysis type
+- **Performance Tracking**: Continuous monitoring and feedback loops for signal accuracy
+- **Adaptive Importance**: Dynamic memory importance scoring based on accuracy and relevance
+- **Persistent Storage**: High-importance memories persisted to disk for long-term learning
+- **Memory Types**:
+  - **Market Context**: Current market conditions, trends, and key levels
+  - **Analysis History**: Past analysis results and reasoning patterns
+  - **Performance Feedback**: Signal outcomes and accuracy tracking
+  - **Conversation Memory**: User interactions and preferences
+- **Automatic Cleanup**: Expired and low-importance memories automatically removed
+- **Cross-Agent Learning**: Shared insights and patterns across agent types
 
 ### Risk Management
 - **Position Sizing**: Kelly Criterion-inspired dynamic position sizing
@@ -118,6 +135,13 @@ LOG_LEVEL=info
 ENABLE_CLAUDE_ANALYSIS=true          # Enable Claude AI analysis
 CLAUDE_CONFIDENCE_THRESHOLD=0.7      # Minimum confidence for Claude signals
 AI_ANALYSIS_TIMEOUT=30000            # Claude API timeout (ms)
+
+# Memory System Configuration
+ENABLE_AGENT_MEMORY=true             # Enable intelligent memory system
+MEMORY_PERSISTENCE_PATH=./data/memories  # Path for persistent memory storage
+MAX_MEMORIES_PER_AGENT=1000          # Maximum memories per agent
+MEMORY_CLEANUP_INTERVAL=3600000      # Memory cleanup interval (ms)
+HIGH_IMPORTANCE_THRESHOLD=0.7        # Persistence threshold for memories
 ```
 
 ### Risk Management Configuration
@@ -203,6 +227,16 @@ Open your browser and navigate to `http://localhost:3000` to access the ZergTrad
 - `GET /agents` - Agent status and health
 - `POST /agents/:id/start` - Start specific agent
 - `POST /agents/:id/stop` - Stop specific agent
+- `GET /agents/:id/memory/stats` - Get agent memory statistics
+- `DELETE /agents/:id/memory` - Clear agent memory
+- `GET /agents/:id/memory/context` - Get relevant memory context for agent
+
+#### Memory System
+- `GET /memory/stats` - System-wide memory statistics
+- `GET /memory/agents/:agentId` - Get memories for specific agent
+- `POST /memory/agents/:agentId/context` - Store market context memory
+- `POST /memory/agents/:agentId/feedback` - Store performance feedback
+- `DELETE /memory/cleanup` - Trigger memory cleanup
 
 #### Trading History
 - `GET /trades` - Trading history
@@ -263,46 +297,54 @@ ws.on('message', (data) => {
               │    (Discovery, Routing, Registry)     │
               └───────┬───────────────────────────────┘
                       │
-   ┌──────────────────┼──────────────────┐
-   │                  │                  │
-┌──▼────────────┐   ┌──▼───────────-─┐  ┌──▼────────────┐
-│ 🧠 Technical  │   │ 📊 Fundamental │  │ 📰 News/     │
-│ Analysis +    │   │ Analysis +     │  │ Sentiment +   │
-│ Claude AI     │   │ Claude AI      │  │ Claude AI     │
-└───────┬───────┘   └───────┬────────┘  └───────┬───────┘
-        │                   │                   │
-        └───────────────────┼───────────────────┘
-                            │
-              ┌─────────────▼─────────────┐
-              │ 🤖 AI Decision Fusion    │
-              │ (Claude + ML Ensemble)   │
-              └─────────────┬─────────────┘
-                            │
-              ┌─────────────▼─────────────┐
-              │ 🛡️ Risk Management        │
-              │ (AI-Enhanced)             │
-              └─────────────┬─────────────┘
-                            │
-              ┌─────────────▼─────────────┐
-              │ 💼 Portfolio Management   │
-              │ (AI-Optimized)            │
-              └─────────────┬─────────────┘
-                            │
-              ┌─────────────▼─────────────┐
-              │ ⚡ Execution Agent         │
-              └───────────────────────────┘
+        ┌─────────────┼─────────────┐
+        │             │             │
+┌───────▼──────┐ ┌────▼────────┐ ┌──▼────────────┐
+│ 🧠 Technical │ │📊Fundamental│ │ 📰 News/      │
+│ Analysis +   │ │ Analysis +  │ │ Sentiment +   │
+│ Claude AI +  │ │ Claude AI + │ │ Claude AI +   │
+│ Memory       │ │ Memory      │ │ Memory        │
+└───────┬──────┘ └────┬────────┘ └──┬────────────┘
+        │             │              │
+        └─────────────┼──────────────┘
+                      │
+        ┌─────────────▼─────────────┐
+        │ 🧠 Intelligent Memory     │
+        │ System (Shared Context)   │
+        └─────────────┬─────────────┘
+                      │
+        ┌─────────────▼─────────────┐
+        │ 🤖 AI Decision Fusion     │
+        │ (Claude + ML + Memory)    │
+        └─────────────┬─────────────┘
+                      │
+        ┌─────────────▼─────────────┐
+        │ 🛡️ Risk Management        │
+        │ (AI-Enhanced + Memory)    │
+        └─────────────┬─────────────┘
+                      │
+        ┌─────────────▼─────────────┐
+        │ 💼 Portfolio Management   │
+        │ (AI-Optimized + Memory)   │
+        └─────────────┬─────────────┘
+                      │
+        ┌─────────────▼─────────────┐
+        │ ⚡ Execution Agent         │
+        └───────────────────────────┘
 ```
 
-### 🔄 Enhanced Data Flow with AI & A2A
+### 🔄 Enhanced Data Flow with AI, A2A & Memory
 1. **Data Collection**: Market data, fundamental data, and news sentiment
 2. **A2A Agent Discovery**: Automatic discovery and registration of external agents
-3. **AI-Enhanced Analysis**: Each agent processes data using Claude AI for deeper insights
-4. **Cross-Agent Communication**: Agents share insights via A2A protocol
-5. **Intelligent Signal Fusion**: AI-powered fusion combining multiple sources
-6. **Risk Evaluation**: AI-enhanced risk assessment with traditional constraints
-7. **Trade Execution**: Portfolio manager executes approved trades
-8. **Performance Tracking**: Continuous monitoring with AI performance optimization
-9. **External Agent Integration**: Real-time collaboration with external A2A agents
+3. **Memory Contextualization**: Agents retrieve relevant historical context and patterns
+4. **AI-Enhanced Analysis**: Each agent processes data using Claude AI with memory-driven insights
+5. **Cross-Agent Communication**: Agents share insights via A2A protocol
+6. **Intelligent Signal Fusion**: AI-powered fusion combining multiple sources with historical performance
+7. **Risk Evaluation**: AI-enhanced risk assessment with traditional constraints
+8. **Trade Execution**: Portfolio manager executes approved trades
+9. **Performance Feedback Loop**: Signal outcomes stored in memory for continuous learning
+10. **Memory-Based Adaptation**: Agents adapt strategies based on historical performance patterns
+11. **External Agent Integration**: Real-time collaboration with external A2A agents
 
 ### UI Architecture
 - **React-like Components**: Modular UI components with state management
@@ -316,9 +358,10 @@ ws.on('message', (data) => {
 ZergTrader includes comprehensive unit tests covering all major components and business logic.
 
 ### Test Coverage
-- **280+ test cases** covering core functionality and new AI/A2A features
+- **320+ test cases** covering core functionality and new AI/A2A/Memory features
 - **Agent System**: BaseAgent, AgentManager with A2A protocol support
 - **AI Integration**: ClaudeClient with comprehensive LLM testing
+- **Memory System**: MemoryService with 36 comprehensive test cases covering storage, retrieval, and persistence
 - **A2A Protocol**: A2AService with agent discovery and communication
 - **Portfolio Management**: PortfolioManager with trade execution and performance tracking
 - **Risk Management**: RiskManager with position sizing and risk alerts

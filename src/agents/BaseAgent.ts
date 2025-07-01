@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { AgentConfig, Agent2AgentMessage, Signal, A2AAgentCard, A2AMessage, A2AResponse } from '../types';
+import { AgentConfig, Agent2AgentMessage, Signal, A2AAgentCard, A2AMessage, A2AResponse, MemoryRetrievalContext } from '../types';
 import { A2AService, A2AServiceConfig } from '../services/A2AService';
 import { ClaudeClient, ClaudeAnalysisRequest } from '../services/ClaudeClient';
+import { MemoryService } from '../services/MemoryService';
 
 export abstract class BaseAgent extends EventEmitter {
   protected config: AgentConfig;
@@ -10,16 +11,30 @@ export abstract class BaseAgent extends EventEmitter {
   protected lastUpdate: Date = new Date();
   protected a2aService?: A2AService;
   protected claudeClient?: ClaudeClient;
+  protected memoryService?: MemoryService;
   protected agentCard: A2AAgentCard;
+  protected enableMemory: boolean = true;
 
-  constructor(config: AgentConfig, enableClaude: boolean = false, enableA2A: boolean = true) {
+  constructor(
+    config: AgentConfig, 
+    enableClaude: boolean = false, 
+    enableA2A: boolean = true,
+    enableMemory: boolean = true,
+    memoryService?: MemoryService
+  ) {
     super();
     this.config = config;
+    this.enableMemory = enableMemory;
     
     this.agentCard = this.createAgentCard();
     
+    // Initialize memory service
+    if (enableMemory) {
+      this.memoryService = memoryService || new MemoryService();
+    }
+    
     if (enableClaude) {
-      this.claudeClient = new ClaudeClient();
+      this.claudeClient = new ClaudeClient(undefined, this.memoryService);
     }
     
     if (enableA2A) {
@@ -77,6 +92,12 @@ export abstract class BaseAgent extends EventEmitter {
       await this.a2aService.stop();
     }
     
+    // Clean up memory service if we own it
+    if (this.memoryService && this.enableMemory) {
+      // Don't destroy shared memory service, just clean up
+      this.memoryService.removeAllListeners();
+    }
+    
     this.emit('stopped');
     await this.onStop();
   }
@@ -105,8 +126,150 @@ export abstract class BaseAgent extends EventEmitter {
     if (!this.claudeClient) {
       throw new Error('Claude client not initialized');
     }
-    const response = await this.claudeClient.analyzeMarketData(request);
+    
+    // Enable memory for Claude analysis if available
+    const enhancedRequest = {
+      ...request,
+      agentId: this.config.id,
+      useMemory: this.enableMemory && this.memoryService !== undefined,
+      memoryContext: this.buildMemoryContext(request)
+    };
+    
+    const response = await this.claudeClient.analyzeMarketData(enhancedRequest);
+    
+    // Store successful analysis results in memory
+    if (this.enableMemory && this.memoryService && response.signals.length > 0) {
+      await this.storeSuccessfulAnalysis(request, response.signals);
+    }
+    
     return response.signals;
+  }
+
+  protected buildMemoryContext(request: ClaudeAnalysisRequest): MemoryRetrievalContext {
+    return {
+      symbol: request.symbol,
+      analysisType: request.type,
+      maxMemories: 8,
+      relevanceThreshold: 0.4
+    };
+  }
+
+  protected async storeSuccessfulAnalysis(request: ClaudeAnalysisRequest, signals: Signal[]): Promise<void> {
+    if (!this.memoryService) return;
+
+    try {
+      // Store analysis success pattern
+      await this.memoryService.storeMemory({
+        agentId: this.config.id,
+        type: 'trading_pattern' as any,
+        content: {
+          analysisType: request.type,
+          symbol: request.symbol,
+          signalCount: signals.length,
+          avgConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+          actions: signals.map(s => s.action),
+          context: request.context
+        },
+        importance: 0.7,
+        tags: ['pattern', 'success', request.type, request.symbol || 'market']
+      });
+    } catch (error) {
+      this.log('warn', `Failed to store analysis pattern: ${error}`);
+    }
+  }
+
+  protected async getMemoryContext(symbol?: string, analysisType?: string): Promise<string> {
+    if (!this.enableMemory || !this.memoryService) {
+      return '';
+    }
+
+    try {
+      const context: MemoryRetrievalContext = {
+        symbol,
+        analysisType,
+        maxMemories: 5,
+        relevanceThreshold: 0.5
+      };
+
+      const memories = await this.memoryService.getRelevantContext(this.config.id, context);
+      
+      if (memories.length === 0) {
+        return '';
+      }
+
+      const contextParts = memories.map(memory => {
+        switch (memory.type) {
+          case 'market_context':
+            return `Market ${memory.content.symbol}: ${memory.content.marketCondition} trend (${memory.content.trend})`;
+          case 'performance_feedback':
+            return `Past performance: ${memory.content.actual.accuracy}% accuracy`;
+          case 'analysis_history':
+            return `Previous ${memory.content.analysisType}: ${memory.content.accuracy || 'pending'} accuracy`;
+          default:
+            return `Context: ${JSON.stringify(memory.content).substring(0, 50)}...`;
+        }
+      });
+
+      return `Recent context: ${contextParts.join('; ')}`;
+    } catch (error) {
+      this.log('warn', `Failed to retrieve memory context: ${error}`);
+      return '';
+    }
+  }
+
+  protected async recordSignalOutcome(signalId: string, outcome: {
+    priceMovement: number;
+    timeToTarget: number;
+    accuracy: number;
+  }): Promise<void> {
+    if (!this.enableMemory || !this.memoryService || !this.claudeClient) {
+      return;
+    }
+
+    try {
+      const feedback = this.generateOutcomeFeedback(outcome);
+      await this.claudeClient.updateMemoryWithFeedback(
+        this.config.id,
+        signalId,
+        outcome,
+        feedback
+      );
+
+      this.log('info', `Recorded signal outcome: ${outcome.accuracy}% accuracy`);
+    } catch (error) {
+      this.log('warn', `Failed to record signal outcome: ${error}`);
+    }
+  }
+
+  private generateOutcomeFeedback(outcome: any): string {
+    if (outcome.accuracy > 0.8) {
+      return 'Excellent prediction accuracy - maintain current strategy';
+    } else if (outcome.accuracy > 0.6) {
+      return 'Good prediction accuracy - minor adjustments may improve performance';
+    } else if (outcome.accuracy > 0.4) {
+      return 'Moderate accuracy - review analysis criteria and market conditions';
+    } else {
+      return 'Low accuracy - significant strategy adjustment needed';
+    }
+  }
+
+  public async getMemoryStats(): Promise<any> {
+    if (!this.memoryService) {
+      return { message: 'Memory not enabled for this agent' };
+    }
+
+    const stats = await this.memoryService.getMemoryStats();
+    return {
+      ...stats,
+      agentMemories: stats.memoriesByAgent[this.config.id] || 0
+    };
+  }
+
+  public async clearMemory(): Promise<void> {
+    if (this.memoryService) {
+      await this.memoryService.clearMemories(this.config.id);
+      this.log('info', 'Agent memory cleared');
+    }
   }
 
   protected receiveMessage(message: Agent2AgentMessage): void {

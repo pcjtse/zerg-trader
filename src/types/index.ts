@@ -168,3 +168,92 @@ export interface Agent2AgentMessage {
   timestamp: Date;
   id: string;
 }
+
+export interface MemoryEntry {
+  id: string;
+  agentId: string;
+  type: MemoryType;
+  content: any;
+  timestamp: Date;
+  importance: number; // 0-1 scale
+  tags: string[];
+  expiresAt?: Date;
+  metadata?: Record<string, any>;
+}
+
+export enum MemoryType {
+  MARKET_CONTEXT = 'market_context',
+  ANALYSIS_HISTORY = 'analysis_history',
+  PERFORMANCE_FEEDBACK = 'performance_feedback',
+  TRADING_PATTERN = 'trading_pattern',
+  SIGNAL_CONTEXT = 'signal_context',
+  CONVERSATION = 'conversation',
+  MARKET_CONDITION = 'market_condition',
+  RISK_EVENT = 'risk_event',
+  LEARNING = 'learning'
+}
+
+export interface MarketContextMemory {
+  symbol: string;
+  timeframe: string;
+  marketCondition: 'bullish' | 'bearish' | 'neutral' | 'volatile';
+  keyLevels: {
+    support: number[];
+    resistance: number[];
+  };
+  volatility: number;
+  volume: 'high' | 'normal' | 'low';
+  trend: 'uptrend' | 'downtrend' | 'sideways';
+  lastAnalysis: Date;
+}
+
+export interface AnalysisHistoryMemory {
+  analysisType: string;
+  input: any;
+  output: Signal[];
+  claudeReasoning: string;
+  accuracy?: number; // Measured after outcome known
+  marketOutcome?: 'correct' | 'incorrect' | 'partial';
+  lessons?: string[];
+}
+
+export interface PerformanceFeedbackMemory {
+  signalId: string;
+  predicted: Signal;
+  actual: {
+    priceMovement: number;
+    timeToTarget: number;
+    accuracy: number;
+  };
+  feedback: string;
+  adjustments: string[];
+}
+
+export interface ConversationMemory {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  context: string;
+  importance: number;
+}
+
+export interface MemorySearchOptions {
+  agentId?: string;
+  type?: MemoryType;
+  tags?: string[];
+  timeRange?: {
+    start: Date;
+    end: Date;
+  };
+  limit?: number;
+  minImportance?: number;
+  includeExpired?: boolean;
+}
+
+export interface MemoryRetrievalContext {
+  symbol?: string;
+  analysisType?: string;
+  timeframe?: string;
+  marketCondition?: string;
+  maxMemories?: number;
+  relevanceThreshold?: number;
+}

@@ -7,8 +7,8 @@ export class TrendFollowingAgent extends BaseAgent {
   private dataBuffer: Map<string, MarketData[]> = new Map();
   private indicatorBuffer: Map<string, TechnicalIndicator[]> = new Map();
 
-  constructor(config: AgentConfig, enableClaude: boolean = true) {
-    super(config, enableClaude, true);
+  constructor(config: AgentConfig, enableClaude: boolean = true, enableMemory: boolean = true) {
+    super(config, enableClaude, true, enableMemory);
   }
 
   protected async onStart(): Promise<void> {
@@ -65,11 +65,14 @@ export class TrendFollowingAgent extends BaseAgent {
     let enhancedSignals = technicalSignals;
     if (this.claudeClient) {
       try {
+        // Get memory context for enhanced analysis
+        const memoryContext = await this.getMemoryContext(symbol, 'technical');
+        
         const claudeRequest: ClaudeAnalysisRequest = {
           type: 'technical',
           data: marketData,
           symbol,
-          context: `Trend following analysis for ${symbol}. Technical indicators: ${indicators.map(i => `${i.name}=${i.value}`).join(', ')}`
+          context: `Trend following analysis for ${symbol}. Technical indicators: ${indicators.map(i => `${i.name}=${i.value}`).join(', ')}. ${memoryContext}`
         };
         
         const claudeSignals = await this.analyzeWithClaude(claudeRequest);
@@ -77,6 +80,11 @@ export class TrendFollowingAgent extends BaseAgent {
       } catch (error) {
         this.log('warn', `Claude analysis failed for ${symbol}: ${error}`);
       }
+    }
+
+    // Store market context in memory for future reference
+    if (this.enableMemory && this.memoryService && enhancedSignals.length > 0) {
+      await this.storeMarketContext(symbol, marketData, enhancedSignals);
     }
 
     // Generate composite trend signal
@@ -93,6 +101,91 @@ export class TrendFollowingAgent extends BaseAgent {
 
     this.lastUpdate = new Date();
     return enhancedSignals;
+  }
+
+  private async storeMarketContext(symbol: string, marketData: MarketData[], signals: Signal[]): Promise<void> {
+    if (!this.memoryService) return;
+
+    try {
+      const recent = marketData.slice(-20);
+      const currentPrice = recent[recent.length - 1].close;
+      const priceChange = (currentPrice - recent[0].close) / recent[0].close;
+      
+      // Determine market condition based on signals and price action
+      const buySignals = signals.filter(s => s.action === 'BUY');
+      const sellSignals = signals.filter(s => s.action === 'SELL');
+      
+      let marketCondition: 'bullish' | 'bearish' | 'neutral' | 'volatile';
+      if (buySignals.length > sellSignals.length && priceChange > 0.02) {
+        marketCondition = 'bullish';
+      } else if (sellSignals.length > buySignals.length && priceChange < -0.02) {
+        marketCondition = 'bearish';
+      } else if (Math.abs(priceChange) > 0.05) {
+        marketCondition = 'volatile';
+      } else {
+        marketCondition = 'neutral';
+      }
+
+      // Determine trend
+      let trend: 'uptrend' | 'downtrend' | 'sideways';
+      if (priceChange > 0.01) {
+        trend = 'uptrend';
+      } else if (priceChange < -0.01) {
+        trend = 'downtrend';
+      } else {
+        trend = 'sideways';
+      }
+
+      // Calculate volatility
+      const prices = recent.map(d => d.close);
+      const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+      const variance = prices.reduce((sum, p) => sum + Math.pow(p - avgPrice, 2), 0) / prices.length;
+      const volatility = Math.sqrt(variance) / avgPrice;
+
+      // Calculate average volume
+      const avgVolume = recent.reduce((sum, d) => sum + d.volume, 0) / recent.length;
+      const recentVolume = recent.slice(-5).reduce((sum, d) => sum + d.volume, 0) / 5;
+      const volumeRatio = recentVolume / avgVolume;
+      
+      let volume: 'high' | 'normal' | 'low';
+      if (volumeRatio > 1.3) {
+        volume = 'high';
+      } else if (volumeRatio < 0.7) {
+        volume = 'low';
+      } else {
+        volume = 'normal';
+      }
+
+      await this.memoryService.storeMarketContext(
+        this.config.id,
+        {
+          symbol,
+          timeframe: '1d',
+          marketCondition,
+          keyLevels: {
+            support: this.findSupportLevels(recent),
+            resistance: this.findResistanceLevels(recent)
+          },
+          volatility,
+          volume,
+          trend,
+          lastAnalysis: new Date()
+        },
+        0.8 // High importance for market context
+      );
+    } catch (error) {
+      this.log('warn', `Failed to store market context: ${error}`);
+    }
+  }
+
+  private findSupportLevels(data: MarketData[]): number[] {
+    const lows = data.map(d => d.low).sort((a, b) => a - b);
+    return lows.slice(0, 3); // Return 3 lowest levels as support
+  }
+
+  private findResistanceLevels(data: MarketData[]): number[] {
+    const highs = data.map(d => d.high).sort((a, b) => b - a);
+    return highs.slice(0, 3); // Return 3 highest levels as resistance
   }
 
   private async getTechnicalSignals(symbol: string, marketData: MarketData[], indicators: TechnicalIndicator[]): Promise<Signal[]> {
@@ -383,6 +476,15 @@ export class TrendFollowingAgent extends BaseAgent {
     this.analyze({ symbol, marketData: data, indicators: this.indicatorBuffer.get(symbol) || [] });
   }
 
+  // Expose method for testing signal outcomes
+  public async recordSignalPerformance(signalId: string, outcome: {
+    priceMovement: number;
+    timeToTarget: number;
+    accuracy: number;
+  }): Promise<void> {
+    await this.recordSignalOutcome(signalId, outcome);
+  }
+
   protected getCapabilities(): string[] {
     return [
       'trend-analysis',
@@ -392,7 +494,9 @@ export class TrendFollowingAgent extends BaseAgent {
       'momentum-analysis',
       'composite-signals',
       'real-time-analysis',
-      'claude-enhanced-analysis'
+      'claude-enhanced-analysis',
+      'memory-contextual-analysis',
+      'adaptive-learning'
     ];
   }
 
@@ -425,6 +529,24 @@ export class TrendFollowingAgent extends BaseAgent {
           request: 'ClaudeAnalysisRequest'
         },
         returns: { signals: 'Signal[]' }
+      },
+      {
+        name: 'getMemoryContext',
+        description: 'Retrieve relevant memory context for analysis',
+        parameters: {
+          symbol: 'string',
+          analysisType: 'string'
+        },
+        returns: { context: 'string' }
+      },
+      {
+        name: 'storeMarketContext',
+        description: 'Store market context in memory for future reference',
+        parameters: {
+          symbol: 'string',
+          marketData: 'MarketData[]',
+          signals: 'Signal[]'
+        }
       }
     ];
   }
