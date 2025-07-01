@@ -646,6 +646,282 @@ enableDebug() // In browser console
 - **WebSocket message batching** with A2A protocol support
 - **Real-time A2A agent status** updates
 
+## 📊 Backtesting Framework
+
+ZergTrader features a comprehensive backtesting system that enables strategy development, validation, and optimization using historical market data with AI-enhanced analysis.
+
+### 🏗️ Backtesting Architecture
+
+```
+┌─────────────────────┐    ┌────────────────────-─┐    ┌─────────────────────┐
+│  BacktestController │    │   BacktestEngine     │    │HistoricalDataProvider│
+│                     │────│                      │────│                     │
+│ • Job Management    │    │ • Strategy Simulation│    │ • Alpha Vantage API │
+│ • API Endpoints     │    │ • AI-Enhanced Agents │    │ • TradingView Data  │
+│ • Result Tracking   │    │ • Portfolio Mgmt     │    │ • Mock Data Gen     │
+│ • Concurrent Runs   │    │ • Risk Management    │    │ • CSV Import        │
+└─────────────────────┘    └───────────────────-──┘    └─────────────────────┘
+                                      │
+                       ┌─────────────────────┐
+                       │Portfolio Tracker    │
+                       │                     │
+                       │ • 25+ Metrics       │
+                       │ • Risk Analytics    │
+                       │ • Attribution       │
+                       │ • Export Tools      │
+                       └─────────────────────┘
+```
+
+### 🔄 Backtesting Process Flow
+
+#### 1. **Backtest Creation & Configuration**
+```typescript
+const backtestConfig = {
+  startDate: new Date('2023-01-01'),
+  endDate: new Date('2023-12-31'),
+  initialCapital: 100000,
+  symbols: ['AAPL', 'MSFT', 'GOOGL', 'TSLA'],
+  commission: 1.0,
+  slippage: 0.001,
+  dataSource: 'alphavantage'
+};
+
+const agentConfigs = [
+  {
+    id: 'trend-agent',
+    type: 'TECHNICAL',
+    parameters: { smaShortPeriod: 20, smaLongPeriod: 200 }
+  },
+  {
+    id: 'ai-fusion-agent', 
+    type: 'FUSION',
+    enableClaude: true,
+    parameters: { confidenceThreshold: 0.7 }
+  }
+];
+```
+
+#### 2. **Historical Data Loading**
+- **Multiple Data Sources**: Alpha Vantage API, TradingView, Mock data, CSV import
+- **Data Validation**: Integrity checks, date range validation, missing data handling
+- **Rate Limiting**: Automatic API rate limiting (5 req/min for Alpha Vantage)
+- **Caching**: Intelligent data caching for performance optimization
+
+#### 3. **Time-Step Simulation Engine**
+```
+For each timestamp in backtest period:
+├── 📈 Update portfolio with current market prices
+├── 🤖 Generate trading signals from AI-enhanced agents
+├── 🛡️ Process signals through risk management system
+├── 💹 Execute approved trades with realistic costs
+├── 📊 Update portfolio positions and valuations
+├── 📈 Calculate real-time performance metrics
+├── 💾 Store portfolio snapshot for analysis
+└── 📡 Emit progress events for real-time monitoring
+```
+
+#### 4. **AI-Enhanced Signal Generation**
+- **Technical Agents**: SMA, EMA, RSI, MACD, Bollinger Bands analysis
+- **Fundamental Agents**: P/E ratios, DCF models, financial strength assessment  
+- **Claude AI Integration**: Advanced pattern recognition and market interpretation
+- **Decision Fusion**: ML ensemble methods combining multiple signal sources
+- **Memory-Driven**: Agents learn from historical performance and adapt strategies
+
+### 📊 Comprehensive Performance Analytics
+
+#### **Core Performance Metrics**
+```typescript
+interface PortfolioMetrics {
+  // Return Metrics
+  totalReturn: number;          // Overall portfolio return
+  cumulativeReturn: number;     // Cumulative return over time
+  dailyReturn: number;          // Most recent daily return
+  
+  // Risk-Adjusted Metrics  
+  sharpeRatio: number;          // Risk-adjusted return (vs risk-free rate)
+  sortinoRatio: number;         // Downside risk-adjusted return
+  calmarRatio: number;          // Return vs maximum drawdown
+  
+  // Risk Metrics
+  volatility: number;           // Annualized volatility
+  maxDrawdown: number;          // Maximum peak-to-trough decline
+  currentDrawdown: number;      // Current drawdown from peak
+  
+  // Trading Performance
+  winRate: number;              // Percentage of profitable trades
+  profitFactor: number;         // Gross profit / gross loss ratio
+  averageWin: number;           // Average winning trade amount
+  averageLoss: number;          // Average losing trade amount
+  totalTrades: number;          // Total number of trades
+  
+  // Market Risk Metrics
+  beta: number;                 // Correlation with market benchmark
+  alpha: number;                // Excess return vs benchmark
+  informationRatio: number;     // Active return / tracking error
+}
+```
+
+#### **Position Attribution Analysis**
+- **Symbol-level contribution** to portfolio performance
+- **Weight and return breakdown** by position
+- **Holding period analysis** and turnover metrics
+- **Risk contribution** by individual positions
+
+#### **Advanced Analytics**
+- **Time-series analysis** of all metrics
+- **Drawdown analysis** with recovery periods
+- **Rolling performance** windows (30d, 90d, 1Y)
+- **Benchmark comparison** (S&P 500, custom indices)
+
+### 🔧 Advanced Backtesting Features
+
+#### **Parameter Optimization & Sweeps**
+```typescript
+// Automatically test multiple parameter combinations
+const parameterRanges = new Map([
+  ['smaShortPeriod', [10, 20, 30]],
+  ['smaLongPeriod', [50, 100, 200]],
+  ['rsiOversold', [20, 25, 30]],
+  ['confidenceThreshold', [0.6, 0.7, 0.8]]
+]);
+
+const results = await engine.runParameterSweep(parameterRanges);
+// Generates and tests all combinations (3×3×3×3 = 81 backtests)
+```
+
+#### **Concurrent Job Management**
+- **Multiple backtest execution** (up to 3 concurrent jobs)
+- **Job queue management** with status tracking
+- **Real-time progress monitoring** via WebSocket
+- **Automatic retry** on failures with error handling
+
+#### **Data Export & Analysis**
+```typescript
+// Export options
+GET /backtests/:jobId/export?format=json   // Complete results
+GET /backtests/:jobId/export?format=csv    // Time-series data
+POST /backtests/compare                     // Multi-strategy comparison
+```
+
+#### **Real-time Monitoring**
+```javascript
+// WebSocket integration for live backtest monitoring
+const ws = new WebSocket('ws://localhost:3000');
+
+ws.on('message', (data) => {
+  const message = JSON.parse(data);
+  
+  switch (message.type) {
+    case 'backtestProgress':
+      console.log(`Progress: ${message.data.progress}%`);
+      break;
+    case 'timestepProcessed':
+      console.log(`Portfolio Value: $${message.data.portfolio.total_value}`);
+      break;
+    case 'tradeExecuted':
+      console.log(`Trade: ${message.data.action} ${message.data.symbol}`);
+      break;
+  }
+});
+```
+
+### 🌐 Data Sources & Integration
+
+#### **External APIs**
+- **Alpha Vantage**: Real historical market data with fundamental data
+- **TradingView**: Professional-grade data and technical analysis
+- **Yahoo Finance**: Free alternative data source
+- **News API**: Sentiment analysis data for AI agents
+
+#### **Claude AI Integration**
+- **Market Analysis**: Advanced pattern recognition and interpretation
+- **Signal Enhancement**: AI confidence scoring and reasoning
+- **Adaptive Learning**: Memory-driven strategy improvement
+- **Risk Assessment**: AI-powered risk evaluation
+
+#### **Data Providers**
+```typescript
+// Flexible data provider system
+const providers = {
+  alphavantage: new AlphaVantageProvider(apiKey),
+  tradingview: new TradingViewProvider(config),
+  mock: new MockDataProvider(),
+  csv: new CSVDataProvider()
+};
+```
+
+### 📈 Backtesting Use Cases
+
+#### **Strategy Development**
+- **New Algorithm Testing**: Validate trading strategies on historical data
+- **AI Model Training**: Use backtesting results to improve AI agents
+- **Risk Parameter Tuning**: Optimize risk management settings
+
+#### **Strategy Comparison**
+```typescript
+// Compare multiple strategies side-by-side
+const comparison = await backtestController.compareBacktests([
+  'trend-following-backtest-id',
+  'mean-reversion-backtest-id', 
+  'ai-fusion-backtest-id'
+]);
+
+// Rankings by different metrics
+console.log('Best by Sharpe Ratio:', comparison.rankings.bySharpe[0]);
+console.log('Best by Return:', comparison.rankings.byReturn[0]);
+console.log('Lowest Drawdown:', comparison.rankings.byDrawdown[0]);
+```
+
+#### **Production Validation**
+- **Walk-forward analysis** with rolling optimization windows
+- **Out-of-sample testing** to prevent overfitting
+- **Stress testing** under different market conditions
+- **Monte Carlo simulation** for robust validation
+
+### 🎯 REST API Endpoints
+
+```bash
+# Backtest Management
+POST   /backtests              # Create new backtest
+GET    /backtests              # List all backtests  
+GET    /backtests/:id          # Get backtest status
+GET    /backtests/:id/result   # Get backtest results
+DELETE /backtests/:id/cancel   # Cancel running backtest
+DELETE /backtests/:id          # Delete backtest
+
+# Analysis & Export
+POST   /backtests/compare      # Compare multiple backtests
+GET    /backtests/:id/export   # Export results (JSON/CSV)
+GET    /backtests/:id/snapshots # Get time-series snapshots
+```
+
+### 🔍 Example Backtest Results
+
+```json
+{
+  "id": "backtest-uuid",
+  "name": "AI-Enhanced Trend Following Strategy",
+  "period": "2023-01-01 to 2023-12-31",
+  "initial_capital": 100000,
+  "final_capital": 126500,
+  "total_return": 0.265,
+  "max_drawdown": 0.087,
+  "sharpe_ratio": 1.847,
+  "win_rate": 0.642,
+  "total_trades": 147,
+  "ai_signals_used": 89,
+  "claude_confidence_avg": 0.78,
+  "best_performing_agent": "ai-fusion-agent",
+  "symbol_attribution": {
+    "AAPL": { "return": 0.31, "contribution": 0.089 },
+    "MSFT": { "return": 0.28, "contribution": 0.076 },
+    "GOOGL": { "return": 0.22, "contribution": 0.063 }
+  }
+}
+```
+
+The backtesting framework provides institutional-grade capabilities for strategy development and validation, combining traditional quantitative methods with cutting-edge AI analysis for superior trading strategy development.
+
 ## 🚨 Troubleshooting
 
 ### Common Issues
