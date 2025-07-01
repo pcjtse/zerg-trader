@@ -267,9 +267,53 @@ ws.on('message', (data) => {
 
 ## 🧪 Testing
 
-### Run Tests
+ZergTrader includes comprehensive unit tests covering all major components and business logic.
+
+### Test Coverage
+- **105 test cases** covering core functionality
+- **Agent System**: BaseAgent, AgentManager
+- **Portfolio Management**: PortfolioManager with trade execution and performance tracking
+- **Risk Management**: RiskManager with position sizing and risk alerts
+- **Backtesting**: BacktestEngine with historical simulation and parameter sweeps
+
+### Run Unit Tests
 ```bash
+# Run all tests
 npm test
+
+# Run tests with coverage report
+npm test -- --coverage
+
+# Run tests in watch mode (for development)
+npm test -- --watch
+
+# Run specific test file
+npm test -- tests/portfolio/PortfolioManager.test.ts
+
+# Run tests matching a pattern
+npm test -- --testNamePattern="should execute trade"
+```
+
+### Test Configuration
+Tests are configured using Jest with TypeScript support:
+- **Test Framework**: Jest 29.7.0
+- **TypeScript Support**: ts-jest
+- **Coverage Reports**: Text, LCOV, and HTML formats
+- **Test Environment**: Node.js
+
+### Test Structure
+```
+tests/
+├── agents/
+│   ├── BaseAgent.test.ts
+│   └── AgentManager.test.ts
+├── portfolio/
+│   └── PortfolioManager.test.ts
+├── risk/
+│   └── RiskManager.test.ts
+├── backtesting/
+│   └── BacktestEngine.test.ts
+└── setup.ts
 ```
 
 ### Type Checking
@@ -281,6 +325,13 @@ npm run typecheck
 ```bash
 npm run lint
 ```
+
+### Testing Best Practices
+- All tests use proper mocking for external dependencies
+- Tests focus on business logic and edge cases
+- Each test is isolated and can run independently
+- Mock data simulates realistic trading scenarios
+- Tests validate both success and error conditions
 
 ## 📊 Monitoring
 
