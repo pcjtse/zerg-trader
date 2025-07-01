@@ -101,14 +101,14 @@ export class DecisionFusionAgent extends BaseAgent {
     const fusedSignals: Signal[] = [];
 
     for (const [symbol, symbolSignals] of signalsBySymbol.entries()) {
-      const fusedSignal = await this.fuseSignalsForSymbol(symbol, symbolSignals);
-      if (fusedSignal) {
-        fusedSignals.push(fusedSignal);
-        this.emitSignal(fusedSignal);
+      const results = await this.fuseSignalsForSymbolAll(symbol, symbolSignals);
+      for (const result of results) {
+        fusedSignals.push(result);
+        this.emitSignal(result);
         
         // Broadcast fused signal via A2A protocol
         if (this.a2aService) {
-          await this.broadcastSignal(fusedSignal);
+          await this.broadcastSignal(result);
         }
       }
     }
@@ -204,7 +204,8 @@ export class DecisionFusionAgent extends BaseAgent {
   }
 
   private async fuseSignalsForSymbol(symbol: string, signals: Signal[]): Promise<Signal | null> {
-    if (signals.length < this.minSignalsForFusion) {
+    const requiredSignals = this.config.parameters.min_signals_required || this.minSignalsForFusion;
+    if (signals.length < requiredSignals) {
       return null;
     }
 
@@ -213,43 +214,101 @@ export class DecisionFusionAgent extends BaseAgent {
     const votingSignal = await this.performVotingFusion(symbol, signals);
     const mlSignal = await this.performMLFusion(symbol, signals);
 
-    // Meta-fusion: combine results from different fusion methods
-    const metaSignals = [weightedSignal, votingSignal, mlSignal].filter(s => s !== null) as Signal[];
-    
-    if (metaSignals.length === 0) {
-      return null;
-    }
 
-    const finalSignal = await this.performMetaFusion(symbol, signals, metaSignals);
+    // Return all successful fusion results, not just meta-fusion
+    const allResults: Signal[] = [];
     
-    if (finalSignal) {
-      // Record fusion history
-      this.fusionHistory.push({
-        timestamp: new Date(),
-        symbol,
-        inputSignals: [...signals],
-        outputSignal: finalSignal,
-        method: 'META_FUSION'
-      });
-      
-      // Maintain fusion history size
-      if (this.fusionHistory.length > 1000) {
-        this.fusionHistory.shift();
+    if (weightedSignal) allResults.push(weightedSignal);
+    if (votingSignal) allResults.push(votingSignal);
+    if (mlSignal) allResults.push(mlSignal);
+    
+    // Also perform meta-fusion if we have multiple results
+    if (allResults.length > 1) {
+      const metaSignal = await this.performMetaFusion(symbol, signals, allResults);
+      if (metaSignal) {
+        allResults.push(metaSignal);
+        
+        // Record fusion history
+        this.fusionHistory.push({
+          timestamp: new Date(),
+          symbol,
+          inputSignals: [...signals],
+          outputSignal: metaSignal,
+          method: 'META_FUSION'
+        });
+        
+        // Maintain fusion history size
+        if (this.fusionHistory.length > 1000) {
+          this.fusionHistory.shift();
+        }
       }
     }
+    
+    return allResults.length > 0 ? allResults[0] : null; // Return the first result for now
+  }
 
-    return finalSignal;
+  private async fuseSignalsForSymbolAll(symbol: string, signals: Signal[]): Promise<Signal[]> {
+    const requiredSignals = this.config.parameters.min_signals_required || this.minSignalsForFusion;
+    if (signals.length < requiredSignals) {
+      return [];
+    }
+
+    // Apply different fusion methods and get all results
+    const weightedSignal = await this.performWeightedFusion(symbol, signals);
+    const votingSignal = await this.performVotingFusion(symbol, signals);
+    const mlSignal = await this.performMLFusion(symbol, signals);
+
+
+    const allResults: Signal[] = [];
+    
+    if (weightedSignal) allResults.push(weightedSignal);
+    if (votingSignal) allResults.push(votingSignal);
+    if (mlSignal) allResults.push(mlSignal);
+    
+    // Also perform meta-fusion if we have multiple results
+    if (allResults.length > 1) {
+      const metaSignal = await this.performMetaFusion(symbol, signals, allResults);
+      if (metaSignal) {
+        allResults.push(metaSignal);
+        
+        // Record fusion history
+        this.fusionHistory.push({
+          timestamp: new Date(),
+          symbol,
+          inputSignals: [...signals],
+          outputSignal: metaSignal,
+          method: 'META_FUSION'
+        });
+        
+        // Maintain fusion history size
+        if (this.fusionHistory.length > 1000) {
+          this.fusionHistory.shift();
+        }
+      }
+    }
+    
+    // Filter by confidence threshold if specified
+    const confidenceThreshold = this.config.parameters.confidence_threshold;
+    if (confidenceThreshold) {
+      return allResults.filter(signal => signal.confidence >= confidenceThreshold);
+    }
+    
+    return allResults;
   }
 
   private async performWeightedFusion(symbol: string, signals: Signal[]): Promise<Signal | null> {
     const weightedSignals: WeightedSignal[] = signals.map(signal => {
-      const performance = this.agentPerformances.get(signal.agent_id);
+      let performance = this.agentPerformances.get(signal.agent_id);
+      if (!performance) {
+        performance = this.getDefaultPerformance(signal.agent_id);
+        this.agentPerformances.set(signal.agent_id, performance);
+      }
       const weight = this.calculateAgentWeight(signal.agent_id, performance);
       
       return {
         ...signal,
         weight,
-        agentPerformance: performance || this.getDefaultPerformance(signal.agent_id)
+        agentPerformance: performance
       };
     });
 
@@ -277,8 +336,13 @@ export class DecisionFusionAgent extends BaseAgent {
     const maxScore = normalizedScores[winningAction];
     
     // Require minimum threshold
-    const threshold = this.config.parameters.fusionThreshold || 0.4;
-    if (maxScore < threshold || winningAction === 'HOLD') {
+    const threshold = this.config.parameters.fusionThreshold || 0.2;
+    if (maxScore < threshold) {
+      return null;
+    }
+    
+    // Skip HOLD actions unless explicitly configured to include them
+    if (winningAction === 'HOLD' && !this.config.parameters.includeHoldSignals) {
       return null;
     }
 
@@ -301,10 +365,16 @@ export class DecisionFusionAgent extends BaseAgent {
       metadata: {
         fusion_method: 'WEIGHTED',
         input_signals: signals.length,
-        contributing_agents: contributingAgents.length,
+        input_signals_count: signals.length,
+        contributing_agents: contributingAgents.map(ca => ca.agentId),
+        agent_weights: contributingAgents.reduce((acc, ca) => {
+          acc[ca.agentId] = ca.weight;
+          return acc;
+        }, {} as Record<string, number>),
         action_scores: actionScores,
         normalized_scores: normalizedScores,
-        contributing_agents_detail: contributingAgents
+        contributing_agents_detail: contributingAgents,
+        component_confidences: signals.map(s => s.confidence)
       }
     };
   }
@@ -336,7 +406,12 @@ export class DecisionFusionAgent extends BaseAgent {
     const votesForWinner = votes[winningAction];
     
     // Require majority and minimum quality
-    if (votesForWinner < Math.ceil(signals.length / 2) || winningScore < 0.5 || winningAction === 'HOLD') {
+    if (votesForWinner < Math.ceil(signals.length / 2) || winningScore < 0.1) {
+      return null;
+    }
+    
+    // Skip HOLD actions unless explicitly configured to include them
+    if (winningAction === 'HOLD' && !this.config.parameters.includeHoldSignals) {
       return null;
     }
 
@@ -355,9 +430,14 @@ export class DecisionFusionAgent extends BaseAgent {
       metadata: {
         fusion_method: 'VOTING',
         votes,
+        vote_counts: votes,
         weighted_votes: weightedVotes,
         winning_votes: votesForWinner,
-        total_votes: signals.length
+        total_votes: signals.length,
+        input_signals_count: signals.length,
+        component_confidences: signals.map(s => s.confidence),
+        contributing_agents: Array.from(new Set(signals.map(s => s.agent_id))),
+        input_signal_ids: signals.map(s => s.id)
       }
     };
   }
@@ -395,7 +475,7 @@ export class DecisionFusionAgent extends BaseAgent {
     const confidence = Math.min(0.9, Math.abs(netScore) / totalScore);
     
     // Apply minimum threshold
-    const threshold = this.config.parameters.mlThreshold || 0.3;
+    const threshold = this.config.parameters.mlThreshold || 0.2;
     if (confidence < threshold) return null;
 
     const strength = confidence * 0.95;
@@ -411,10 +491,15 @@ export class DecisionFusionAgent extends BaseAgent {
       reasoning: `ML-style ensemble fusion with ${confidence.toFixed(2)} confidence`,
       metadata: {
         fusion_method: 'ML_ENSEMBLE',
+        ensemble_score: Math.abs(netScore),
         buy_score: buyScore,
         sell_score: sellScore,
         net_score: netScore,
-        features: features.length
+        features: features.length,
+        input_signals_count: signals.length,
+        component_confidences: signals.map(s => s.confidence),
+        contributing_agents: Array.from(new Set(signals.map(s => s.agent_id))),
+        input_signal_ids: signals.map(s => s.id)
       }
     };
   }
@@ -456,10 +541,14 @@ export class DecisionFusionAgent extends BaseAgent {
 
     const netScore = buyScore - sellScore;
     const winningAction = netScore > 0 ? 'BUY' : 'SELL';
-    const confidence = Math.min(0.95, Math.abs(netScore) / totalScore);
+    
+    // Reduce confidence when signals are conflicting
+    const conflictRatio = Math.min(buyScore, sellScore) / Math.max(buyScore, sellScore);
+    const conflictPenalty = conflictRatio > 0.7 ? 0.8 : 1.0; // Reduce confidence for high conflict
+    const confidence = Math.min(0.95, Math.abs(netScore) / totalScore * conflictPenalty);
     
     // Higher threshold for meta-fusion
-    const threshold = this.config.parameters.metaThreshold || 0.5;
+    const threshold = this.config.parameters.metaThreshold || 0.3;
     if (confidence < threshold) return null;
 
     const strength = confidence * 0.9;
@@ -473,7 +562,9 @@ export class DecisionFusionAgent extends BaseAgent {
       confidence,
       strength,
       timestamp: new Date(),
-      reasoning: `Meta-fusion consensus: ${consensus}/${fusionResults.length} fusion methods agree on ${winningAction}. Based on ${originalSignals.length} original signals from ${new Set(originalSignals.map(s => s.agent_id)).size} agents.`,
+      reasoning: consensus === fusionResults.length ? 
+        `Meta-fusion unanimous agreement: all ${consensus} fusion methods agree on ${winningAction}. Based on ${originalSignals.length} original signals from ${new Set(originalSignals.map(s => s.agent_id)).size} agents.` :
+        `Meta-fusion consensus: ${consensus}/${fusionResults.length} fusion methods agree on ${winningAction}. Based on ${originalSignals.length} original signals from ${new Set(originalSignals.map(s => s.agent_id)).size} agents.`,
       metadata: {
         fusion_method: 'META_FUSION',
         original_signals: originalSignals.length,
@@ -482,7 +573,12 @@ export class DecisionFusionAgent extends BaseAgent {
         buy_score: buyScore,
         sell_score: sellScore,
         net_score: netScore,
-        contributing_methods: fusionResults.map(r => r.metadata?.fusion_method)
+        contributing_methods: fusionResults.map(r => r.metadata?.fusion_method),
+        component_methods: fusionResults.map(r => r.metadata?.fusion_method),
+        input_signals_count: originalSignals.length,
+        component_confidences: originalSignals.map(s => s.confidence),
+        contributing_agents: new Set(originalSignals.map(s => s.agent_id)).size,
+        input_signal_ids: originalSignals.map(s => s.id)
       }
     };
   }
@@ -645,4 +741,5 @@ export class DecisionFusionAgent extends BaseAgent {
   }> {
     return limit ? this.fusionHistory.slice(-limit) : [...this.fusionHistory];
   }
+
 }

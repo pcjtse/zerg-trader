@@ -186,7 +186,7 @@ describe('DecisionFusionAgent', () => {
       
       const weightedSignals = signals.filter(s => 
         s.reasoning.toLowerCase().includes('weighted') ||
-        s.metadata?.fusion_method === 'weighted'
+        s.metadata?.fusion_method === 'WEIGHTED'
       );
       
       expect(weightedSignals.length).toBeGreaterThan(0);

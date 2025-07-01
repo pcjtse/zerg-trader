@@ -45,18 +45,19 @@ describe('ClaudeClient', () => {
     });
   });
 
+  const mockMarketData: MarketData[] = [
+    {
+      symbol: 'AAPL',
+      timestamp: new Date(),
+      open: 150,
+      high: 155,
+      low: 148,
+      close: 153,
+      volume: 1000000
+    }
+  ];
+
   describe('analyzeMarketData', () => {
-    const mockMarketData: MarketData[] = [
-      {
-        symbol: 'AAPL',
-        timestamp: new Date(),
-        open: 150,
-        high: 155,
-        low: 148,
-        close: 153,
-        volume: 1000000
-      }
-    ];
 
     const mockRequest: ClaudeAnalysisRequest = {
       type: 'technical',

@@ -383,6 +383,9 @@ describe('AgentManager', () => {
 
     it('should get external agents list', () => {
       const externalAgents = agentManager.getExternalAgents();
+      // Should return an empty array when no external agents are connected
+      // The method should exist and return an array (or empty array if A2A service not available)
+      expect(externalAgents).toBeDefined();
       expect(Array.isArray(externalAgents)).toBe(true);
     });
 

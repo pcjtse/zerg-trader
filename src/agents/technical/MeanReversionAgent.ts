@@ -82,19 +82,19 @@ export class MeanReversionAgent extends BaseAgent {
 
     if (rsi.value <= extremeOversoldThreshold) {
       action = 'BUY';
-      confidence = 0.8;
+      confidence = 0.85;
       reasoning = `RSI extremely oversold at ${rsi.value.toFixed(2)}`;
     } else if (rsi.value <= oversoldThreshold) {
       action = 'BUY';
-      confidence = 0.6;
+      confidence = 0.65;
       reasoning = `RSI oversold at ${rsi.value.toFixed(2)}`;
     } else if (rsi.value >= extremeOverboughtThreshold) {
       action = 'SELL';
-      confidence = 0.8;
+      confidence = 0.85;
       reasoning = `RSI extremely overbought at ${rsi.value.toFixed(2)}`;
     } else if (rsi.value >= overboughtThreshold) {
       action = 'SELL';
-      confidence = 0.6;
+      confidence = 0.65;
       reasoning = `RSI overbought at ${rsi.value.toFixed(2)}`;
     }
 
@@ -113,7 +113,8 @@ export class MeanReversionAgent extends BaseAgent {
         rsi: rsi.value,
         oversoldThreshold,
         overboughtThreshold,
-        indicator: 'RSI'
+        indicator: 'RSI',
+        signal_type: 'MEAN_REVERSION_RSI'
       }
     };
   }
@@ -121,33 +122,50 @@ export class MeanReversionAgent extends BaseAgent {
   private analyzeBollingerBands(symbol: string, marketData: MarketData[], indicators: TechnicalIndicator[]): Signal | null {
     if (marketData.length < 20) return null;
 
-    const sma20 = indicators.filter(i => i.name === 'SMA_20').slice(-1)[0];
-    if (!sma20) return null;
-
-    const recent20 = marketData.slice(-20);
     const currentPrice = marketData[marketData.length - 1].close;
     
-    // Calculate standard deviation
-    const mean = sma20.value;
-    const variance = recent20.reduce((sum, d) => sum + Math.pow(d.close - mean, 2), 0) / 20;
-    const stdDev = Math.sqrt(variance);
+    // Try to use provided Bollinger Band indicators first
+    const bbUpper = indicators.filter(i => i.name === 'BB_UPPER').slice(-1)[0];
+    const bbLower = indicators.filter(i => i.name === 'BB_LOWER').slice(-1)[0];
+    const bbMiddle = indicators.filter(i => i.name === 'BB_MIDDLE').slice(-1)[0];
     
-    const upperBand = mean + (2 * stdDev);
-    const lowerBand = mean - (2 * stdDev);
+    let upperBand: number, lowerBand: number, mean: number, stdDev: number;
+    
+    if (bbUpper && bbLower && bbMiddle) {
+      // Use provided Bollinger Band indicators
+      upperBand = bbUpper.value;
+      lowerBand = bbLower.value;
+      mean = bbMiddle.value;
+      stdDev = (upperBand - mean) / 2; // Approximate std dev
+    } else {
+      // Calculate Bollinger Bands from SMA_20
+      const sma20 = indicators.filter(i => i.name === 'SMA_20').slice(-1)[0];
+      if (!sma20) return null;
+
+      const recent20 = marketData.slice(-20);
+      
+      // Calculate standard deviation
+      mean = sma20.value;
+      const variance = recent20.reduce((sum, d) => sum + Math.pow(d.close - mean, 2), 0) / 20;
+      stdDev = Math.sqrt(variance);
+      
+      upperBand = mean + (2 * stdDev);
+      lowerBand = mean - (2 * stdDev);
+    }
     
     let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
     let confidence = 0;
     let reasoning = '';
 
     // Price touching or breaking lower band (oversold)
-    if (currentPrice <= lowerBand) {
+    if (currentPrice <= lowerBand * 1.01) { // Allow slight tolerance
       const deviation = (lowerBand - currentPrice) / lowerBand;
       action = 'BUY';
       confidence = Math.min(0.8, 0.5 + deviation * 5);
       reasoning = `Price below lower Bollinger Band (${currentPrice.toFixed(2)} vs ${lowerBand.toFixed(2)})`;
     }
     // Price touching or breaking upper band (overbought)
-    else if (currentPrice >= upperBand) {
+    else if (currentPrice >= upperBand * 0.99) { // Allow slight tolerance
       const deviation = (currentPrice - upperBand) / upperBand;
       action = 'SELL';
       confidence = Math.min(0.8, 0.5 + deviation * 5);
@@ -171,7 +189,8 @@ export class MeanReversionAgent extends BaseAgent {
         lowerBand,
         sma20: mean,
         stdDev,
-        indicator: 'BOLLINGER_BANDS'
+        indicator: 'BOLLINGER_BANDS',
+        signal_type: 'MEAN_REVERSION_BOLLINGER'
       }
     };
   }
@@ -221,7 +240,8 @@ export class MeanReversionAgent extends BaseAgent {
         mean,
         stdDev,
         zScore,
-        indicator: 'PRICE_DEVIATION'
+        indicator: 'PRICE_DEVIATION',
+        signal_type: 'MEAN_REVERSION_DEVIATION'
       }
     };
   }
@@ -276,7 +296,8 @@ export class MeanReversionAgent extends BaseAgent {
               currentVolume: current.volume,
               priceChange,
               recentTrend,
-              indicator: 'VOLUME_ANOMALY'
+              indicator: 'VOLUME_ANOMALY',
+              signal_type: 'MEAN_REVERSION_VOLUME'
             }
           };
         }
@@ -302,11 +323,11 @@ export class MeanReversionAgent extends BaseAgent {
     const netScore = buyScore - sellScore;
     
     // Higher threshold for mean reversion signals as they're counter-trend
-    const threshold = 0.4;
+    const threshold = 0.2;
     if (Math.abs(netScore) < threshold) return null;
 
     const action = netScore > 0 ? 'BUY' : 'SELL';
-    const confidence = Math.min(0.85, Math.abs(netScore) / totalScore * 2);
+    const confidence = Math.min(0.85, Math.abs(netScore) / totalScore * 2 + 0.2);
     const strength = confidence * 0.8; // Mean reversion signals are inherently riskier
 
     const supportingSignals = action === 'BUY' ? buySignals : sellSignals;
@@ -326,7 +347,8 @@ export class MeanReversionAgent extends BaseAgent {
         sellScore,
         netScore,
         supportingSignals: supportingSignals.length,
-        indicator: 'COMPOSITE_MEAN_REVERSION'
+        indicator: 'COMPOSITE_MEAN_REVERSION',
+        signal_type: 'COMPOSITE_MEAN_REVERSION'
       }
     };
   }

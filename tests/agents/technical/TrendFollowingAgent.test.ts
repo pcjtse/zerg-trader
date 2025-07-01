@@ -312,47 +312,61 @@ describe('TrendFollowingAgent', () => {
     });
 
     it('should generate hold signal on neutral trend', async () => {
-      // Create neutral indicators (mixed signals)
+      // Create neutral market data with no trend
+      const neutralMarketData = mockMarketData.map((data, index) => ({
+        ...data,
+        close: 150 + (Math.random() - 0.5) * 1, // Random around 150, no trend
+        high: 151,
+        low: 149
+      }));
+      
+      // Create neutral indicators (equal values)
       const neutralIndicators = [
         {
           name: 'SMA_20',
-          value: 152, // Very close values
+          value: 150, // All equal for neutral
           timestamp: new Date(),
           parameters: { period: 20 }
         },
         {
           name: 'SMA_50',
-          value: 151,
+          value: 150,
           timestamp: new Date(),
           parameters: { period: 50 }
         },
         {
+          name: 'SMA_200',
+          value: 150,
+          timestamp: new Date(),
+          parameters: { period: 200 }
+        },
+        {
           name: 'EMA_12',
-          value: 153,
+          value: 150,
           timestamp: new Date(),
           parameters: { period: 12 }
         },
         {
           name: 'EMA_26',
-          value: 152,
+          value: 150,
           timestamp: new Date(),
           parameters: { period: 26 }
         },
         {
           name: 'MACD',
-          value: 0.1, // Near zero
+          value: 0.01, // Very close to zero
           timestamp: new Date(),
           parameters: { fast: 12, slow: 26 }
         },
         {
           name: 'MACD_SIGNAL',
-          value: 0.05,
+          value: 0.01,
           timestamp: new Date(),
           parameters: { period: 9 }
         },
         {
           name: 'MACD_HISTOGRAM',
-          value: 0.05, // Near zero
+          value: 0.00, // Zero
           timestamp: new Date(),
           parameters: {}
         }
@@ -360,7 +374,7 @@ describe('TrendFollowingAgent', () => {
       
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        marketData: mockMarketData,
+        marketData: neutralMarketData,
         indicators: neutralIndicators
       });
       

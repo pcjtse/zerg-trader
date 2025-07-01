@@ -26,6 +26,10 @@ import { AgentConfig, Portfolio, Signal } from './types';
 // Import logger
 import { Logger } from './utils/logger';
 
+// Import TradingView services
+import { TradingViewClient } from './services/TradingViewClient';
+import { TradingViewDataService } from './services/TradingViewDataService';
+
 // Load environment variables
 dotenv.config();
 
@@ -40,6 +44,8 @@ class ZergTrader {
   private backtestController!: BacktestController;
   private tradingMetrics!: TradingMetrics;
   private healthChecks!: HealthChecks;
+  private tradingViewClient?: TradingViewClient;
+  private tradingViewDataService?: TradingViewDataService;
   private isRunning: boolean = false;
 
   constructor() {
@@ -58,6 +64,12 @@ class ZergTrader {
 
     // Initialize data manager
     this.dataManager = new DataManager();
+
+    // Initialize TradingView services if enabled
+    if (process.env.TRADINGVIEW_ENABLE === 'true') {
+      this.tradingViewClient = new TradingViewClient();
+      this.tradingViewDataService = new TradingViewDataService();
+    }
 
     // Initialize risk manager with default constraints
     const riskConstraints = {
@@ -104,8 +116,8 @@ class ZergTrader {
 
     this.portfolioManager = new PortfolioManager(portfolioConfig, this.riskManager);
 
-    // Initialize agent manager
-    this.agentManager = new AgentManager();
+    // Initialize agent manager with memory service
+    this.agentManager = new AgentManager(process.env.A2A_REGISTRY_ENDPOINT);
 
     // Initialize backtest controller
     this.backtestController = new BacktestController();
@@ -131,6 +143,9 @@ class ZergTrader {
 
   private createAgents(): void {
     const watchedSymbols = (process.env.WATCHED_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,AMZN').split(',');
+    const sharedMemoryService = this.agentManager.getMemoryService();
+    const enableClaude = process.env.ENABLE_CLAUDE_ANALYSIS !== 'false';
+    const enableA2A = process.env.A2A_ENABLE_DISCOVERY === 'true';
 
     // Technical Analysis Agents
     const trendAgent = new TrendFollowingAgent({
@@ -146,7 +161,7 @@ class ZergTrader {
         macdParams: { fast: 12, slow: 26, signal: 9 }
       },
       weight: 0.3
-    });
+    }, enableClaude, true, process.env.TRADINGVIEW_ENABLE === 'true');
 
     const meanReversionAgent = new MeanReversionAgent({
       id: 'mean-reversion-agent',
@@ -163,7 +178,7 @@ class ZergTrader {
         volumeThreshold: 2
       },
       weight: 0.25
-    });
+    }, enableClaude);
 
     // Fundamental Analysis Agent
     const valuationAgent = new ValuationAgent({
@@ -179,7 +194,7 @@ class ZergTrader {
         roaThreshold: 0.10
       },
       weight: 0.2
-    });
+    }, enableClaude);
 
     // Decision Fusion Agent
     const fusionAgent = new DecisionFusionAgent({
@@ -194,7 +209,7 @@ class ZergTrader {
         defaultAgentWeight: 0.5
       },
       weight: 1.0
-    });
+    }, enableClaude);
 
     // Register agents
     this.agentManager.registerAgent(trendAgent);
@@ -369,6 +384,68 @@ class ZergTrader {
       }
     });
 
+    // Memory system endpoints
+    this.app.get('/memory/stats', async (req, res) => {
+      try {
+        const memoryService = this.agentManager.getMemoryService();
+        const stats = await memoryService.getMemoryStats();
+        res.json(stats);
+      } catch (error) {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Memory service error' });
+      }
+    });
+
+    this.app.get('/agents/:id/memory/stats', async (req, res) => {
+      try {
+        const memoryService = this.agentManager.getMemoryService();
+        const memories = await memoryService.retrieveMemories({ 
+          agentId: req.params.id,
+          limit: 1000 
+        });
+        res.json({ 
+          agentId: req.params.id,
+          totalMemories: memories.length,
+          avgImportance: memories.reduce((sum, m) => sum + m.importance, 0) / memories.length || 0
+        });
+      } catch (error) {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Memory service error' });
+      }
+    });
+
+    this.app.delete('/agents/:id/memory', async (req, res) => {
+      try {
+        const memoryService = this.agentManager.getMemoryService();
+        await memoryService.clearMemories(req.params.id);
+        res.json({ success: true, message: `Cleared memories for agent ${req.params.id}` });
+      } catch (error) {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Memory service error' });
+      }
+    });
+
+    this.app.get('/agents/:id/memory/context', async (req, res) => {
+      try {
+        const memoryService = this.agentManager.getMemoryService();
+        const context = await memoryService.getRelevantContext(req.params.id, {
+          symbol: req.query.symbol as string,
+          analysisType: req.query.analysisType as string,
+          maxMemories: parseInt(req.query.limit as string) || 10
+        });
+        res.json(context);
+      } catch (error) {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Memory service error' });
+      }
+    });
+
+    this.app.delete('/memory/cleanup', async (req, res) => {
+      try {
+        const memoryService = this.agentManager.getMemoryService();
+        // Trigger manual cleanup - this would need to be implemented in MemoryService
+        res.json({ success: true, message: 'Memory cleanup triggered' });
+      } catch (error) {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Memory service error' });
+      }
+    });
+
     // Trading endpoints
     this.app.get('/trades', (req, res) => {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
@@ -409,6 +486,94 @@ class ZergTrader {
     this.app.delete('/backtests/:jobId', this.backtestController.deleteBacktest.bind(this.backtestController));
     this.app.post('/backtests/compare', this.backtestController.compareBacktests.bind(this.backtestController));
     this.app.get('/backtests/:jobId/export', this.backtestController.exportBacktestData.bind(this.backtestController));
+
+    // TradingView endpoints (if enabled)
+    if (this.tradingViewDataService) {
+      this.app.get('/tradingview/status', (req, res) => {
+        res.json({ 
+          enabled: true,
+          connected: this.tradingViewClient?.isConnected() || false,
+          timestamp: new Date().toISOString()
+        });
+      });
+
+      this.app.get('/tradingview/symbols/:symbol/info', async (req, res) => {
+        try {
+          const info = await this.tradingViewClient!.getSymbolInfo(req.params.symbol);
+          res.json(info);
+        } catch (error) {
+          res.status(500).json({ error: error instanceof Error ? error.message : 'TradingView error' });
+        }
+      });
+
+      this.app.get('/tradingview/symbols/:symbol/quote', async (req, res) => {
+        try {
+          const quote = await this.tradingViewDataService!.getRealtimeQuote(req.params.symbol);
+          res.json(quote);
+        } catch (error) {
+          res.status(500).json({ error: error instanceof Error ? error.message : 'TradingView error' });
+        }
+      });
+
+      this.app.get('/tradingview/symbols/:symbol/history', async (req, res) => {
+        try {
+          const { from, to, resolution = '1D' } = req.query;
+          const history = await this.tradingViewDataService!.getHistoricalData(
+            req.params.symbol,
+            resolution as any,
+            from ? new Date(from as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            to ? new Date(to as string) : new Date()
+          );
+          res.json(history);
+        } catch (error) {
+          res.status(500).json({ error: error instanceof Error ? error.message : 'TradingView error' });
+        }
+      });
+
+      this.app.get('/tradingview/symbols/:symbol/indicators', async (req, res) => {
+        try {
+          const indicatorNames = (req.query.indicators as string)?.split(',') || ['RSI', 'MACD', 'SMA'];
+          const allIndicators = [];
+          for (const indicator of indicatorNames) {
+            try {
+              const indData = await this.tradingViewDataService!.getTechnicalIndicators(
+                req.params.symbol,
+                indicator as any,
+                '1D',
+                14,
+                new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+                new Date()
+              );
+              allIndicators.push(...indData);
+            } catch (error) {
+              console.warn(`Failed to get ${indicator} for ${req.params.symbol}:`, error);
+            }
+          }
+          const indicators = { indicators: allIndicators };
+          res.json(indicators);
+        } catch (error) {
+          res.status(500).json({ error: error instanceof Error ? error.message : 'TradingView error' });
+        }
+      });
+
+      this.app.get('/tradingview/symbols/:symbol/analysis', async (req, res) => {
+        try {
+          const analysis = await this.tradingViewClient!.getTechnicalAnalysis(req.params.symbol);
+          res.json(analysis);
+        } catch (error) {
+          res.status(500).json({ error: error instanceof Error ? error.message : 'TradingView error' });
+        }
+      });
+
+      this.app.post('/tradingview/screener', async (req, res) => {
+        try {
+          const results = await this.tradingViewClient!.screenStocks(req.body);
+          res.json(results);
+        } catch (error) {
+          res.status(500).json({ error: error instanceof Error ? error.message : 'TradingView error' });
+        }
+      });
+    }
   }
 
   private setupWebSocket(): void {
@@ -558,9 +723,50 @@ class ZergTrader {
         const symbols = (process.env.WATCHED_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,AMZN').split(',');
         for (const symbol of symbols) {
           try {
-            const marketData = await this.dataManager.getMarketData(symbol, '1d', 100);
-            const fundamentalData = await this.dataManager.getFundamentalData(symbol);
-            const indicators = this.dataManager.calculateTechnicalIndicators(marketData, ['sma', 'ema', 'rsi', 'macd']);
+            let marketData = await this.dataManager.getMarketData(symbol, '1d', 100);
+            let fundamentalData = await this.dataManager.getFundamentalData(symbol);
+            let indicators = this.dataManager.calculateTechnicalIndicators(marketData, ['sma', 'ema', 'rsi', 'macd']);
+
+            // Enhance with TradingView data if available
+            if (this.tradingViewDataService && this.tradingViewClient) {
+              try {
+                const tvResponse = await this.tradingViewClient.getHistoricalData({
+                  symbol,
+                  from: Math.floor((Date.now() - 100 * 24 * 60 * 60 * 1000) / 1000),
+                  to: Math.floor(Date.now() / 1000),
+                  resolution: '1D',
+                  firstDataRequest: true
+                });
+                const tvData = await this.tradingViewClient.convertToMarketData(tvResponse, symbol);
+                if (tvData && tvData.length > 0) {
+                  marketData = tvData;
+                }
+
+                const tvIndicators = [];
+                if (this.tradingViewDataService) {
+                  for (const indicatorName of ['RSI', 'MACD', 'SMA', 'EMA']) {
+                    try {
+                      const indData = await this.tradingViewDataService.getTechnicalIndicators(
+                        symbol,
+                        indicatorName as any,
+                        '1D',
+                        14,
+                        new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
+                        new Date()
+                      );
+                      tvIndicators.push(...indData);
+                    } catch (error) {
+                      Logger.warn(`Failed to get ${indicatorName} for ${symbol}:`, error);
+                    }
+                  }
+                }
+                
+                // Merge TradingView indicators with calculated ones
+                indicators = [...indicators, ...tvIndicators];
+              } catch (error) {
+                Logger.warn(`TradingView data fetch failed for ${symbol}:`, error);
+              }
+            }
 
             // Send data to technical agents
             const technicalAgents = this.agentManager.getAgentsByType('TECHNICAL');

@@ -146,9 +146,10 @@ export class TradingViewDataService extends EventEmitter {
     this.marketDataCache.set(update.symbol, cached);
 
     // Notify subscribers
-    const subscription = this.dataSubscriptions.get(update.symbol);
-    if (subscription) {
-      subscription.callback(marketData);
+    for (const subscription of this.dataSubscriptions.values()) {
+      if (subscription.symbol === update.symbol) {
+        subscription.callback(marketData);
+      }
     }
 
     this.emit('realtimeUpdate', marketData);

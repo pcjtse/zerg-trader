@@ -3,6 +3,10 @@ import { MarketData, Portfolio, Trade, Signal, BacktestResult, AgentConfig } fro
 import { PortfolioManager, PortfolioConfig } from '../portfolio/PortfolioManager';
 import { RiskManager } from '../risk/RiskManager';
 import { AgentManager } from '../agents/AgentManager';
+import { TrendFollowingAgent } from '../agents/technical/TrendFollowingAgent';
+import { MeanReversionAgent } from '../agents/technical/MeanReversionAgent';
+import { ValuationAgent } from '../agents/fundamental/ValuationAgent';
+import { DecisionFusionAgent } from '../agents/fusion/DecisionFusionAgent';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface BacktestConfig {
@@ -76,19 +80,43 @@ export class BacktestEngine extends EventEmitter {
     this.portfolioManager = new PortfolioManager(portfolioConfig, this.riskManager);
     this.agentManager = new AgentManager();
     
-    // Initialize agents from configs
-    agentConfigs.forEach(agentConfig => {
-      console.log(`Would initialize agent: ${agentConfig.name}`);
-    });
-
-    // Register agents
-    agentConfigs.forEach(agentConfig => {
-      // Agent registration would be implemented based on agent types
-      // For now, this is a placeholder
-      console.log(`Registering agent: ${agentConfig.name}`);
-    });
+    // Initialize and register agents based on configs
+    this.initializeAgents(agentConfigs);
 
     this.setupEventHandlers();
+  }
+
+  private initializeAgents(agentConfigs: AgentConfig[]): void {
+    const sharedMemoryService = this.agentManager.getMemoryService();
+    const enableClaude = true; // Enable for backtesting
+    const enableA2A = false; // Disable A2A for backtesting
+    
+    agentConfigs.forEach(agentConfig => {
+      let agent;
+      
+      switch (agentConfig.type) {
+        case 'TECHNICAL':
+          if (agentConfig.name.includes('Trend')) {
+            agent = new TrendFollowingAgent(agentConfig, enableClaude, true);
+          } else if (agentConfig.name.includes('Mean')) {
+            agent = new MeanReversionAgent(agentConfig, enableClaude);
+          }
+          break;
+        case 'FUNDAMENTAL':
+          agent = new ValuationAgent(agentConfig, enableClaude);
+          break;
+        case 'FUSION':
+          agent = new DecisionFusionAgent(agentConfig, enableClaude);
+          break;
+        default:
+          console.warn(`Unknown agent type: ${agentConfig.type}`);
+      }
+      
+      if (agent) {
+        this.agentManager.registerAgent(agent);
+        console.log(`Registered ${agentConfig.type} agent: ${agentConfig.name}`);
+      }
+    });
   }
 
   public async loadHistoricalData(data: Map<string, MarketData[]>): Promise<void> {
@@ -223,9 +251,58 @@ export class BacktestEngine extends EventEmitter {
   private async generateSignals(marketData: Map<string, MarketData>): Promise<Signal[]> {
     const signals: Signal[] = [];
     
-    // This would integrate with actual agents
-    // For now, return empty array as placeholder
-    // In real implementation, this would call agent analysis methods
+    // Get all active agents
+    const allAgents = this.agentManager.getAllAgents().filter(agent => agent.isEnabled());
+    
+    // Process each symbol with each agent
+    for (const [symbol, data] of marketData) {
+      // Get historical data for analysis (last 100 data points)
+      const historicalData = this.getHistoricalDataForSymbol(symbol, 100);
+      
+      if (historicalData.length === 0) continue;
+      
+      // Calculate technical indicators
+      const indicators = this.calculateIndicators(historicalData);
+      
+      for (const agent of allAgents) {
+        try {
+          let agentSignals: Signal[] = [];
+          
+          switch (agent.getType()) {
+            case 'TECHNICAL':
+              agentSignals = await agent.analyze({ 
+                symbol, 
+                marketData: historicalData, 
+                indicators 
+              });
+              break;
+            case 'FUNDAMENTAL':
+              // For backtesting, we'll use simplified fundamental data
+              const fundamentalData = this.generateMockFundamentalData(symbol);
+              agentSignals = await agent.analyze({ 
+                symbol, 
+                fundamentalData, 
+                marketData: historicalData 
+              });
+              break;
+            case 'FUSION':
+              // Fusion agent needs signals from other agents
+              const otherSignals = signals.filter(s => s.symbol === symbol);
+              if (otherSignals.length > 0) {
+                agentSignals = await agent.analyze({ 
+                  symbol, 
+                  signals: otherSignals 
+                });
+              }
+              break;
+          }
+          
+          signals.push(...agentSignals);
+        } catch (error) {
+          console.error(`Error generating signals from agent ${agent.getId()}:`, error);
+        }
+      }
+    }
     
     return signals;
   }
@@ -378,6 +455,68 @@ export class BacktestEngine extends EventEmitter {
   private updateAgentParameters(params: Map<string, number>): void {
     // This would update agent parameters for parameter sweep
     // Implementation depends on agent architecture
+  }
+
+  private getHistoricalDataForSymbol(symbol: string, limit: number): MarketData[] {
+    const data = this.historicalData.get(symbol) || [];
+    const endIndex = Math.min(this.currentIndex + 1, data.length);
+    const startIndex = Math.max(0, endIndex - limit);
+    return data.slice(startIndex, endIndex);
+  }
+
+  private calculateIndicators(data: MarketData[]): any[] {
+    // Simple indicator calculation for backtesting
+    if (data.length < 20) return [];
+    
+    const closes = data.map(d => d.close);
+    const sma20 = this.calculateSMA(closes, 20);
+    const sma50 = data.length >= 50 ? this.calculateSMA(closes, 50) : null;
+    const rsi = this.calculateRSI(closes, 14);
+    
+    return [
+      { name: 'SMA_20', value: sma20, timestamp: data[data.length - 1].timestamp },
+      ...(sma50 ? [{ name: 'SMA_50', value: sma50, timestamp: data[data.length - 1].timestamp }] : []),
+      { name: 'RSI', value: rsi, timestamp: data[data.length - 1].timestamp }
+    ];
+  }
+
+  private calculateSMA(values: number[], period: number): number {
+    if (values.length < period) return 0;
+    const sum = values.slice(-period).reduce((a, b) => a + b, 0);
+    return sum / period;
+  }
+
+  private calculateRSI(values: number[], period: number): number {
+    if (values.length < period + 1) return 50;
+    
+    let gains = 0;
+    let losses = 0;
+    
+    for (let i = values.length - period; i < values.length; i++) {
+      const change = values[i] - values[i - 1];
+      if (change > 0) gains += change;
+      else losses -= change;
+    }
+    
+    const avgGain = gains / period;
+    const avgLoss = losses / period;
+    const rs = avgGain / avgLoss;
+    
+    return 100 - (100 / (1 + rs));
+  }
+
+  private generateMockFundamentalData(symbol: string): any {
+    // Generate mock fundamental data for backtesting
+    return {
+      symbol,
+      timestamp: new Date(),
+      pe_ratio: 15 + Math.random() * 20,
+      eps: 2 + Math.random() * 10,
+      debt_to_equity: Math.random() * 2,
+      roe: 0.05 + Math.random() * 0.25,
+      roa: 0.02 + Math.random() * 0.15,
+      revenue: 1000000 + Math.random() * 10000000
+    };
   }
 
   private setupEventHandlers(): void {

@@ -140,7 +140,7 @@ export class ValuationAgent extends BaseAgent {
       reasoning = `PE ratio ${pe.toFixed(2)} below sector average ${sectorPE.toFixed(2)}`;
     } else if (pe > sectorPE * 1.5) { // Significantly overvalued
       action = 'SELL';
-      confidence = 0.7;
+      confidence = 0.75;
       reasoning = `PE ratio ${pe.toFixed(2)} significantly above sector average ${sectorPE.toFixed(2)}`;
     } else if (pe > marketPE * 1.3) { // Overvalued vs market
       action = 'SELL';
@@ -170,7 +170,9 @@ export class ValuationAgent extends BaseAgent {
         market_pe: marketPE,
         eps: fundamentalData.eps,
         currentPrice,
-        indicator: 'PE_RATIO'
+        indicator: 'PE_RATIO',
+        signal_type: 'FUNDAMENTAL_PE_RATIO',
+        current_price: currentPrice
       }
     };
   }
@@ -217,7 +219,8 @@ export class ValuationAgent extends BaseAgent {
       metadata: {
         eps,
         estimated_growth_rate: estimatedGrowthRate,
-        indicator: 'EARNINGS_GROWTH'
+        indicator: 'EARNINGS_GROWTH',
+        signal_type: 'FUNDAMENTAL_EARNINGS_GROWTH'
       }
     };
   }
@@ -258,7 +261,8 @@ export class ValuationAgent extends BaseAgent {
       reasoning,
       metadata: {
         debt_to_equity: debtToEquity,
-        indicator: 'DEBT_ANALYSIS'
+        indicator: 'DEBT_ANALYSIS',
+        signal_type: 'FUNDAMENTAL_DEBT_ANALYSIS'
       }
     };
   }
@@ -319,7 +323,8 @@ export class ValuationAgent extends BaseAgent {
       metadata: {
         roe,
         roa,
-        indicator: 'PROFITABILITY'
+        indicator: 'PROFITABILITY',
+        signal_type: 'FUNDAMENTAL_PROFITABILITY'
       }
     };
   }
@@ -387,7 +392,8 @@ export class ValuationAgent extends BaseAgent {
         margin,
         growth_rate: growthRate,
         discount_rate: discountRate,
-        indicator: 'DCF_ANALYSIS'
+        indicator: 'DCF_ANALYSIS',
+        signal_type: 'FUNDAMENTAL_DCF_ANALYSIS'
       }
     };
   }
@@ -423,7 +429,7 @@ export class ValuationAgent extends BaseAgent {
     const netScore = buyScore - sellScore;
     
     // Fundamental signals require higher threshold due to longer time horizon
-    const threshold = 0.5;
+    const threshold = 0.2;
     if (Math.abs(netScore) < threshold) return null;
 
     const action = netScore > 0 ? 'BUY' : 'SELL';
@@ -448,7 +454,9 @@ export class ValuationAgent extends BaseAgent {
         netScore,
         supportingSignals: supportingSignals.length,
         currentPrice,
-        indicator: 'COMPOSITE_FUNDAMENTAL'
+        indicator: 'COMPOSITE_FUNDAMENTAL',
+        signal_type: 'COMPOSITE_FUNDAMENTAL',
+        current_price: currentPrice
       }
     };
   }

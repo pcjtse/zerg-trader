@@ -157,6 +157,9 @@ Guidelines:
         timestamp: new Date(signal.timestamp || Date.now()),
         agent_id: signal.agent_id || `claude_${request.type}`,
         id: signal.id || `claude_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        confidence: signal.confidence !== undefined ? signal.confidence : 0.8, // Default confidence for incomplete signals
+        strength: signal.strength !== undefined ? signal.strength : (signal.confidence || 0.8) * 0.9,
+        reasoning: signal.reasoning || 'Claude AI analysis'
       })) || [];
 
       const response = {

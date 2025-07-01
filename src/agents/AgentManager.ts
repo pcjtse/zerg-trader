@@ -363,12 +363,21 @@ export class AgentManager extends EventEmitter {
     this.emit('agentMemoryCleared', agentId);
   }
 
-  public getA2AService(): A2AService {
+  public getA2AService(): A2AService | undefined {
     return this.a2aService;
   }
 
   public getExternalAgents(): A2AAgentCard[] {
-    return this.a2aService.getConnectedAgents();
+    if (!this.a2aService) {
+      return [];
+    }
+    
+    try {
+      return this.a2aService.getConnectedAgents() || [];
+    } catch (error) {
+      console.warn('Failed to get connected agents from A2A service:', error);
+      return [];
+    }
   }
 
   public async sendA2AMessage(targetEndpoint: string, method: string, params?: any): Promise<A2AResponse> {

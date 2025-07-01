@@ -68,6 +68,12 @@ export abstract class BaseAgent extends EventEmitter {
 
   public updateConfig(newConfig: Partial<AgentConfig>): void {
     this.config = { ...this.config, ...newConfig };
+    
+    // Update agent card when config changes
+    if (newConfig.name || newConfig.type || newConfig.parameters) {
+      this.agentCard = this.createAgentCard();
+    }
+    
     this.emit('configUpdated', this.config);
   }
 

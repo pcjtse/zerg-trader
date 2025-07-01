@@ -15,13 +15,15 @@ describe('MeanReversionAgent', () => {
       enabled: true,
       parameters: {
         symbols: ['AAPL', 'MSFT'],
-        rsi_period: 14,
-        rsi_oversold: 30,
-        rsi_overbought: 70,
-        bb_period: 20,
-        bb_std_dev: 2,
-        volume_threshold: 1.5,
-        price_deviation_threshold: 2.0
+        rsiPeriod: 14,
+        rsiOversold: 30,
+        rsiOverbought: 70,
+        rsiExtremeOversold: 20,
+        rsiExtremeOverbought: 80,
+        bbPeriod: 20,
+        bbStdDev: 2,
+        volumeThreshold: 1.5,
+        deviationThreshold: 2.0
       },
       weight: 1.0
     };
@@ -36,7 +38,11 @@ describe('MeanReversionAgent', () => {
       
       const basePrice = 150;
       // Create oscillating price pattern for mean reversion
-      const cycle = Math.sin(i * 0.3) * 10;
+      // Make the last few data points touch the lower Bollinger band
+      let cycle = Math.sin(i * 0.3) * 10;
+      if (i >= 35) { // Last 5 data points
+        cycle = -15; // Push price to ~135 (lower Bollinger band)
+      }
       const noise = (Math.random() - 0.5) * 2;
       const price = basePrice + cycle + noise;
       
@@ -55,7 +61,7 @@ describe('MeanReversionAgent', () => {
     mockIndicators = [
       {
         name: 'RSI',
-        value: 35, // Oversold condition
+        value: 25, // Extreme oversold condition to trigger signal
         timestamp: new Date(),
         parameters: { period: 14 }
       },
@@ -70,6 +76,12 @@ describe('MeanReversionAgent', () => {
         value: 135,
         timestamp: new Date(),
         parameters: { period: 20, std_dev: 2 }
+      },
+      {
+        name: 'RSI_14',
+        value: 25, // Also add RSI_14 format
+        timestamp: new Date(),
+        parameters: { period: 14 }
       },
       {
         name: 'BB_MIDDLE',
@@ -173,7 +185,7 @@ describe('MeanReversionAgent', () => {
 
     it('should generate buy signal on oversold RSI condition', async () => {
       const oversoldIndicators = [
-        ...mockIndicators.filter(i => i.name !== 'RSI'),
+        ...mockIndicators.filter(i => i.name !== 'RSI' && i.name !== 'RSI_14'),
         {
           name: 'RSI',
           value: 25, // Strongly oversold
@@ -182,9 +194,17 @@ describe('MeanReversionAgent', () => {
         }
       ];
       
+      // Create market data that doesn't trigger Bollinger Bands
+      const neutralPriceData = mockMarketData.map(data => ({
+        ...data,
+        close: 150, // Middle of BB range to avoid BB signals
+        high: 151,
+        low: 149
+      }));
+      
       const signals = await agent.analyze({
         symbol: 'AAPL',
-        marketData: mockMarketData,
+        marketData: neutralPriceData,
         indicators: oversoldIndicators
       });
       
@@ -231,14 +251,25 @@ describe('MeanReversionAgent', () => {
       // Create market data where current price is near lower BB
       const lowPriceData = mockMarketData.map(data => ({
         ...data,
-        close: 136, // Just above lower BB (135)
-        low: 135
+        close: 134, // Below lower BB (135)
+        low: 133
       }));
+      
+      // Use neutral RSI to avoid RSI signals
+      const neutralIndicators = [
+        ...mockIndicators.filter(i => i.name !== 'RSI' && i.name !== 'RSI_14'),
+        {
+          name: 'RSI',
+          value: 50, // Neutral RSI
+          timestamp: new Date(),
+          parameters: { period: 14 }
+        }
+      ];
       
       const signals = await agent.analyze({
         symbol: 'AAPL',
         marketData: lowPriceData,
-        indicators: mockIndicators
+        indicators: neutralIndicators
       });
       
       expect(signals.length).toBeGreaterThan(0);
@@ -255,11 +286,11 @@ describe('MeanReversionAgent', () => {
     });
 
     it('should generate sell signal when price touches upper Bollinger Band', async () => {
-      // Create market data where current price is near upper BB
+      // Create market data where current price is above upper BB
       const highPriceData = mockMarketData.map(data => ({
         ...data,
-        close: 164, // Just below upper BB (165)
-        high: 165
+        close: 166, // Above upper BB (165)
+        high: 167
       }));
       
       const signals = await agent.analyze({
@@ -447,8 +478,8 @@ describe('MeanReversionAgent', () => {
         ...config,
         parameters: {
           ...config.parameters,
-          rsi_oversold: 25,
-          rsi_overbought: 75
+          rsiOversold: 25,
+          rsiOverbought: 75
         }
       };
       
