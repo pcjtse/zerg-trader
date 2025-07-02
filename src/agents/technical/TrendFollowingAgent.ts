@@ -420,8 +420,15 @@ export class TrendFollowingAgent extends BaseAgent {
       confidence = 0.4;
       reasoning = 'Partial bearish SMA alignment';
     }
+    // Neutral/sideways trend - generate HOLD signal with low confidence
+    else {
+      action = 'HOLD';
+      confidence = 0.3;
+      reasoning = 'Neutral SMA alignment - no clear trend direction';
+    }
 
-    if (action === 'HOLD') return null;
+    // Always return a signal (including HOLD for neutral conditions)
+    // if (action === 'HOLD') return null;
 
     return {
       id: uuidv4(),
@@ -474,7 +481,11 @@ export class TrendFollowingAgent extends BaseAgent {
       }
     }
 
-    if (action === 'HOLD') return null;
+    // Generate HOLD signal for neutral EMA conditions
+    if (action === 'HOLD') {
+      confidence = 0.25;
+      reasoning = 'EMA alignment shows neutral/sideways trend';
+    }
 
     return {
       id: uuidv4(),
@@ -519,8 +530,12 @@ export class TrendFollowingAgent extends BaseAgent {
       confidence = Math.min(0.8, 0.5 + momentum);
       reasoning = 'MACD bearish crossover with negative histogram';
     }
-
-    if (action === 'HOLD') return null;
+    
+    // Generate HOLD signal for neutral MACD conditions
+    if (action === 'HOLD') {
+      confidence = 0.2;
+      reasoning = 'MACD showing neutral momentum - no clear directional signal';
+    }
 
     return {
       id: uuidv4(),
@@ -574,7 +589,23 @@ export class TrendFollowingAgent extends BaseAgent {
       };
     }
 
-    return null;
+    // Generate HOLD signal for low momentum/neutral conditions
+    return {
+      id: uuidv4(),
+      agent_id: this.config.id,
+      symbol,
+      action: 'HOLD',
+      confidence: 0.15,
+      strength: 0.15,
+      timestamp: new Date(),
+      reasoning: 'Low momentum and volume - neutral market conditions',
+      metadata: {
+        priceChange,
+        volumeRatio,
+        currentPrice: current.close,
+        indicator: 'MOMENTUM'
+      }
+    };
   }
 
   private generateCompositeSignal(symbol: string, signals: Signal[]): Signal | null {
@@ -582,6 +613,30 @@ export class TrendFollowingAgent extends BaseAgent {
 
     const buySignals = signals.filter(s => s.action === 'BUY');
     const sellSignals = signals.filter(s => s.action === 'SELL');
+    const holdSignals = signals.filter(s => s.action === 'HOLD');
+    
+    // If no BUY/SELL signals but have HOLD signals, generate composite HOLD
+    if (buySignals.length === 0 && sellSignals.length === 0 && holdSignals.length > 0) {
+      const avgConfidence = holdSignals.reduce((sum, s) => sum + s.confidence, 0) / holdSignals.length;
+      return {
+        id: uuidv4(),
+        agent_id: this.config.id,
+        symbol,
+        action: 'HOLD',
+        confidence: Math.min(0.6, avgConfidence * 1.2),
+        strength: avgConfidence,
+        timestamp: new Date(),
+        reasoning: `Composite neutral trend signal based on ${holdSignals.length} indicators showing sideways movement`,
+        metadata: {
+          buyScore: 0,
+          sellScore: 0,
+          netScore: 0,
+          supportingSignals: holdSignals.length,
+          indicators: holdSignals.map(s => s.metadata?.indicator),
+          compositeType: 'NEUTRAL_CONSENSUS'
+        }
+      };
+    }
     
     if (buySignals.length === 0 && sellSignals.length === 0) return null;
 
@@ -594,7 +649,30 @@ export class TrendFollowingAgent extends BaseAgent {
     
     // Require minimum threshold for signal generation
     const threshold = 0.3;
-    if (Math.abs(netScore) < threshold) return null;
+    if (Math.abs(netScore) < threshold) {
+      // If signals are weak but present, generate low-confidence HOLD
+      if (buySignals.length > 0 || sellSignals.length > 0) {
+        return {
+          id: uuidv4(),
+          agent_id: this.config.id,
+          symbol,
+          action: 'HOLD',
+          confidence: 0.4,
+          strength: 0.3,
+          timestamp: new Date(),
+          reasoning: `Weak composite signal below threshold - conflicting or low-confidence indicators`,
+          metadata: {
+            buyScore,
+            sellScore,
+            netScore,
+            supportingSignals: buySignals.length + sellSignals.length,
+            indicators: signals.map(s => s.metadata?.indicator),
+            compositeType: 'WEAK_SIGNALS'
+          }
+        };
+      }
+      return null;
+    }
 
     const action = netScore > 0 ? 'BUY' : 'SELL';
     const confidence = Math.min(0.9, Math.abs(netScore) / totalScore * 2);

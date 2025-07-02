@@ -59,6 +59,18 @@ export class TradingViewDataService extends EventEmitter {
     this.client.on('websocketDisconnected', () => {
       this.emit('disconnected');
     });
+
+    // Also listen to our own realtimeUpdate events for testing purposes
+    this.on('realtimeUpdate', (marketData: MarketData) => {
+      // If this is already a processed MarketData object, notify subscribers directly
+      if (marketData.symbol && marketData.timestamp) {
+        for (const subscription of this.dataSubscriptions.values()) {
+          if (subscription.symbol === marketData.symbol) {
+            subscription.callback(marketData);
+          }
+        }
+      }
+    });
   }
 
   public async initialize(): Promise<void> {

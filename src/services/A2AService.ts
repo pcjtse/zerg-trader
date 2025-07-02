@@ -1,6 +1,8 @@
-import { A2AClient } from '@a2a-js/sdk';
 import { EventEmitter } from 'events';
 import { A2AMessage, A2AResponse, A2AAgentCard, A2ATask, Signal } from '../types';
+
+// Dynamic import type for A2AClient
+type A2AClient = any;
 
 export interface A2AServiceConfig {
   serverPort?: number;
@@ -66,8 +68,22 @@ export class A2AService extends EventEmitter {
   }
 
   private async initializeClient(): Promise<void> {
-    this.client = new A2AClient('http://localhost:3000');
-    this.emit('clientInitialized');
+    try {
+      // Only use dynamic import for ESM compatibility
+      const module = await import('@a2a-js/sdk');
+      const A2AClientClass = module.A2AClient || module.default?.A2AClient || module.default;
+      
+      if (A2AClientClass) {
+        this.client = new A2AClientClass('http://localhost:3000');
+        this.emit('clientInitialized');
+      } else {
+        throw new Error('A2AClient class not found in module');
+      }
+    } catch (error) {
+      console.warn('A2A SDK not available, running without A2A client support:', error);
+      this.client = undefined;
+      this.emit('clientInitialized');
+    }
   }
 
   private async handleIncomingRequest(request: A2AMessage): Promise<A2AResponse> {
