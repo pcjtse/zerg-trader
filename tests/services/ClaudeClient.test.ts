@@ -11,6 +11,8 @@ describe('ClaudeClient', () => {
   let mockMessages: jest.Mocked<Anthropic.Messages>;
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    
     mockMessages = {
       create: jest.fn()
     } as any;
@@ -25,6 +27,8 @@ describe('ClaudeClient', () => {
   });
 
   afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
     jest.resetAllMocks();
   });
 

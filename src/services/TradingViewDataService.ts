@@ -503,4 +503,12 @@ export class TradingViewDataService extends EventEmitter {
     
     this.emit('disconnected');
   }
+
+  public destroy(): void {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = undefined;
+    }
+    this.removeAllListeners();
+  }
 }

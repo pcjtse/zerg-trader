@@ -10,6 +10,10 @@ describe('MonitoringService', () => {
   });
 
   afterEach(() => {
+    // Clean up the monitoring service instance
+    if (monitoringService && typeof monitoringService.destroy === 'function') {
+      monitoringService.destroy();
+    }
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
   });

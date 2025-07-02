@@ -8,6 +8,8 @@ describe('ValuationAgent', () => {
   let mockMarketData: MarketData[];
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    
     config = {
       id: 'valuation-agent-1',
       name: 'Test Valuation Agent',
@@ -59,6 +61,24 @@ describe('ValuationAgent', () => {
         volume: 1000000 + Math.random() * 500000
       });
     }
+  });
+
+  afterEach(async () => {
+    // Clean up agent after each test to prevent memory leaks
+    if (agent && typeof agent.stop === 'function') {
+      try {
+        // Only stop if agent is running to avoid double-stop
+        if ((agent as any).isRunning) {
+          await agent.stop();
+        }
+      } catch (error) {
+        // Ignore stop errors in tests
+      }
+    }
+    
+    // Clear timers and use real timers for cleanup
+    jest.clearAllTimers();
+    jest.useRealTimers();
   });
 
   describe('Lifecycle Management', () => {

@@ -123,7 +123,7 @@ class ZergTrader {
     this.backtestController = new BacktestController();
 
     // Initialize monitoring
-    this.tradingMetrics = new TradingMetrics(monitoringService);
+    this.tradingMetrics = new TradingMetrics(monitoringService.instance);
     this.healthChecks = new HealthChecks(
       this.agentManager,
       this.dataManager,
@@ -221,17 +221,17 @@ class ZergTrader {
   }
 
   private setupHealthChecks(): void {
-    monitoringService.registerHealthCheck('agents', () => this.healthChecks.checkAgentManager());
-    monitoringService.registerHealthCheck('data', () => this.healthChecks.checkDataManager());
-    monitoringService.registerHealthCheck('portfolio', () => this.healthChecks.checkPortfolioManager());
-    monitoringService.registerHealthCheck('risk', () => this.healthChecks.checkRiskManager());
-    monitoringService.registerHealthCheck('system', () => this.healthChecks.checkSystemResources());
-    monitoringService.registerHealthCheck('database', () => this.healthChecks.checkDatabase());
-    monitoringService.registerHealthCheck('external-apis', () => this.healthChecks.checkExternalAPIs());
+    monitoringService.instance.registerHealthCheck('agents', () => this.healthChecks.checkAgentManager());
+    monitoringService.instance.registerHealthCheck('data', () => this.healthChecks.checkDataManager());
+    monitoringService.instance.registerHealthCheck('portfolio', () => this.healthChecks.checkPortfolioManager());
+    monitoringService.instance.registerHealthCheck('risk', () => this.healthChecks.checkRiskManager());
+    monitoringService.instance.registerHealthCheck('system', () => this.healthChecks.checkSystemResources());
+    monitoringService.instance.registerHealthCheck('database', () => this.healthChecks.checkDatabase());
+    monitoringService.instance.registerHealthCheck('external-apis', () => this.healthChecks.checkExternalAPIs());
   }
 
   private setupMonitoringEvents(): void {
-    monitoringService.on('alertCreated', (alert) => {
+    monitoringService.instance.on('alertCreated', (alert) => {
       console.log(`Alert created [${alert.severity}]: ${alert.message}`);
       
       this.broadcastToClients({
@@ -240,7 +240,7 @@ class ZergTrader {
       });
     });
 
-    monitoringService.on('alertResolved', (alert) => {
+    monitoringService.instance.on('alertResolved', (alert) => {
       console.log(`Alert resolved: ${alert.id}`);
       
       this.broadcastToClients({
@@ -249,7 +249,7 @@ class ZergTrader {
       });
     });
 
-    monitoringService.on('metricRecorded', (metric) => {
+    monitoringService.instance.on('metricRecorded', (metric) => {
       if (metric.name.includes('error') || metric.name.includes('alert')) {
         this.broadcastToClients({
           type: 'metric',
@@ -283,7 +283,7 @@ class ZergTrader {
     // Health check
     this.app.get('/health', async (req, res) => {
       try {
-        const systemHealth = await monitoringService.getSystemHealth();
+        const systemHealth = await monitoringService.instance.getSystemHealth();
         res.json({
           ...systemHealth,
           running: this.isRunning
@@ -301,7 +301,7 @@ class ZergTrader {
     this.app.get('/metrics', (req, res) => {
       const name = req.query.name as string;
       const labels = req.query.labels ? JSON.parse(req.query.labels as string) : undefined;
-      const metrics = monitoringService.getMetrics(name, labels);
+      const metrics = monitoringService.instance.getMetrics(name, labels);
       res.json(metrics);
     });
 
@@ -311,18 +311,18 @@ class ZergTrader {
     });
 
     this.app.get('/metrics/export', (req, res) => {
-      const exportData = monitoringService.getMetricsForExport();
+      const exportData = monitoringService.instance.getMetricsForExport();
       res.json(exportData);
     });
 
     this.app.get('/alerts', (req, res) => {
       const resolved = req.query.resolved === 'true' ? true : req.query.resolved === 'false' ? false : undefined;
-      const alerts = monitoringService.getAlerts(resolved);
+      const alerts = monitoringService.instance.getAlerts(resolved);
       res.json(alerts);
     });
 
     this.app.post('/alerts/:id/resolve', (req, res) => {
-      const success = monitoringService.resolveAlert(req.params.id);
+      const success = monitoringService.instance.resolveAlert(req.params.id);
       res.json({ success });
     });
 

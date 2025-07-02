@@ -29,6 +29,7 @@ export class DecisionFusionAgent extends BaseAgent {
     outputSignal: Signal;
     method: string;
   }> = [];
+  private fusionInterval?: NodeJS.Timeout;
 
   private readonly maxHistorySize = 10000;
   private readonly signalExpiryMs = 5 * 60 * 1000; // 5 minutes
@@ -49,11 +50,15 @@ export class DecisionFusionAgent extends BaseAgent {
     });
     
     // Start periodic fusion process
-    setInterval(() => this.performPeriodicFusion(), 30000); // Every 30 seconds
+    this.fusionInterval = setInterval(() => this.performPeriodicFusion(), 30000); // Every 30 seconds
   }
 
   protected async onStop(): Promise<void> {
     this.log('info', 'Decision Fusion Agent stopped');
+    if (this.fusionInterval) {
+      clearInterval(this.fusionInterval);
+      this.fusionInterval = undefined;
+    }
     this.incomingSignals.clear();
     this.historicalSignals = [];
   }

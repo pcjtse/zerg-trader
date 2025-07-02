@@ -100,8 +100,8 @@ export abstract class BaseAgent extends EventEmitter {
     
     // Clean up memory service if we own it
     if (this.memoryService && this.enableMemory) {
-      // Don't destroy shared memory service, just clean up
-      this.memoryService.removeAllListeners();
+      // Destroy the memory service to clean up intervals
+      this.memoryService.destroy();
     }
     
     this.emit('stopped');

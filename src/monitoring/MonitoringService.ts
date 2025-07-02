@@ -41,6 +41,8 @@ export class MonitoringService extends EventEmitter {
   private startTime: Date = new Date();
   private metricsRetentionHours: number = 24;
   private maxMetricsPerKey: number = 1000;
+  private cleanupInterval?: NodeJS.Timeout;
+  private systemMetricsInterval?: NodeJS.Timeout;
 
   constructor() {
     super();
@@ -259,11 +261,11 @@ export class MonitoringService extends EventEmitter {
   }
 
   private setupPeriodicTasks(): void {
-    setInterval(() => {
+    this.cleanupInterval = setInterval(() => {
       this.cleanupOldMetrics();
     }, 60000);
 
-    setInterval(() => {
+    this.systemMetricsInterval = setInterval(() => {
       this.recordSystemMetrics();
     }, 30000);
   }
@@ -314,6 +316,34 @@ export class MonitoringService extends EventEmitter {
     
     return exportData;
   }
+
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = undefined;
+    }
+    if (this.systemMetricsInterval) {
+      clearInterval(this.systemMetricsInterval);
+      this.systemMetricsInterval = undefined;
+    }
+    this.removeAllListeners();
+  }
 }
 
-export const monitoringService = new MonitoringService();
+let _monitoringService: MonitoringService | null = null;
+
+export const monitoringService = {
+  get instance(): MonitoringService {
+    if (!_monitoringService) {
+      _monitoringService = new MonitoringService();
+    }
+    return _monitoringService;
+  },
+  
+  destroy(): void {
+    if (_monitoringService) {
+      _monitoringService.destroy();
+      _monitoringService = null;
+    }
+  }
+};

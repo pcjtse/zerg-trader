@@ -50,6 +50,7 @@ export class ClaudeClient {
     const userPrompt = this.buildUserPrompt(request);
 
     try {
+      let timeoutId: NodeJS.Timeout;
       const message = await Promise.race([
         this.client.messages.create({
           model: this.model,
@@ -63,10 +64,15 @@ export class ClaudeClient {
             },
           ],
         }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Analysis timeout')), this.analysisTimeout)
-        )
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Analysis timeout')), this.analysisTimeout);
+        })
       ]);
+      
+      // Clear timeout if request completed successfully
+      if (timeoutId!) {
+        clearTimeout(timeoutId);
+      }
 
       const content = message.content[0];
       if (content.type !== 'text') {
