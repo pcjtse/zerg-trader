@@ -155,20 +155,262 @@ MAX_DAILY_LOSS=0.05         # 5% max daily loss
 - **Performance Tracking**: Signal accuracy monitoring
 - **Adaptive Learning**: Strategy improvement over time
 
-## 🌐 Agent2Agent Protocol
+## 🌐 Agent2Agent (A2A) Protocol Integration
 
-Connect with external trading agents using Google's A2A standard:
+ZergTrader implements Google's Agent2Agent protocol for seamless cross-platform agent communication and collaboration.
 
-```bash
-# Enable A2A
-A2A_ENABLE_DISCOVERY=true
-A2A_REGISTRY_ENDPOINT=http://registry.example.com
+### 🤖 A2A Agent Architecture
+
+Each ZergTrader agent automatically exposes A2A capabilities:
+
+```javascript
+// Agent Card Example
+{
+  "name": "ZergTrader-TechnicalAnalysis-Agent",
+  "description": "TECHNICAL analysis agent for financial markets",
+  "version": "1.0.0",
+  "capabilities": [
+    "trend-analysis", "sma-analysis", "ema-analysis", "macd-analysis",
+    "stochastic-analysis", "adx-analysis", "williams-r-analysis", 
+    "cci-analysis", "risk-adjusted-signals", "position-sizing"
+  ],
+  "endpoint": "http://localhost:3001",
+  "methods": [
+    {
+      "name": "analyze",
+      "description": "Perform comprehensive trend following analysis with advanced indicators",
+      "parameters": {
+        "symbol": "string",
+        "marketData": "MarketData[]", 
+        "indicators": "TechnicalIndicator[]"
+      },
+      "returns": { "signals": "Signal[]" }
+    }
+  ]
+}
 ```
 
-Features:
-- **Agent Discovery**: Automatic registration and discovery
-- **Cross-Platform Communication**: JSON-RPC 2.0 messaging
-- **Capability Registry**: Method and capability introspection
+### 🔧 A2A Configuration
+
+```bash
+# Environment Variables
+A2A_ENABLE_DISCOVERY=true                    # Enable agent discovery
+A2A_REGISTRY_ENDPOINT=http://localhost:8080  # Agent registry URL
+A2A_SERVER_PORT=3001                         # A2A server port
+A2A_ENABLE_SERVER=true                       # Enable A2A server
+A2A_ENABLE_CLIENT=true                       # Enable A2A client
+```
+
+### 📡 A2A Communication Methods
+
+#### **Market Analysis Requests**
+```javascript
+// Request analysis from external agent
+const request = {
+  "jsonrpc": "2.0",
+  "method": "analyzeMarketData",
+  "params": {
+    "symbol": "AAPL",
+    "marketData": [...],
+    "analysisType": "technical"
+  },
+  "id": "req-123"
+}
+
+// Response from ZergTrader agent
+{
+  "jsonrpc": "2.0", 
+  "result": {
+    "signals": [
+      {
+        "action": "BUY",
+        "confidence": 0.75,
+        "reasoning": "Golden cross pattern with high ADX confirmation",
+        "metadata": { "indicators": ["SMA", "ADX"], "riskAdjusted": true }
+      }
+    ],
+    "agent": "trend-following-agent"
+  },
+  "id": "req-123"
+}
+```
+
+#### **Agent Discovery**
+```javascript
+// Discover available agents
+const discoveryRequest = {
+  "jsonrpc": "2.0",
+  "method": "discoverAgents", 
+  "params": {
+    "capabilities": ["technical-analysis", "risk-management"]
+  },
+  "id": "discovery-1"
+}
+
+// Response with matching agents
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "agents": [
+      {
+        "name": "ZergTrader-TechnicalAnalysis",
+        "endpoint": "http://localhost:3001",
+        "capabilities": ["trend-analysis", "stochastic-analysis"],
+        "status": "online"
+      }
+    ]
+  },
+  "id": "discovery-1"
+}
+```
+
+#### **Signal Broadcasting**
+```javascript
+// ZergTrader broadcasts signals to A2A network
+const signalBroadcast = {
+  "jsonrpc": "2.0",
+  "method": "signalGenerated",
+  "params": {
+    "signal": {
+      "symbol": "AAPL",
+      "action": "BUY", 
+      "confidence": 0.82,
+      "agent": "ai-fusion-agent",
+      "timestamp": "2024-01-01T12:00:00Z"
+    }
+  }
+}
+```
+
+### 🔍 A2A Method Registry
+
+ZergTrader agents expose these A2A methods:
+
+| Method | Description | Parameters |
+|--------|-------------|------------|
+| `analyze` | Perform market analysis | `symbol`, `marketData`, `indicators` |
+| `getCapabilities` | List agent capabilities | none |
+| `getPerformanceMetrics` | Get agent performance stats | `timeRange` |
+| `updateConfiguration` | Update agent parameters | `parameters` |
+| `getMemoryContext` | Retrieve relevant memories | `symbol`, `analysisType` |
+| `recordSignalOutcome` | Record signal performance | `signalId`, `outcome` |
+
+### 🌐 Multi-Agent Collaboration
+
+#### **Cross-Agent Signal Fusion**
+```javascript
+// ZergTrader requests analysis from multiple A2A agents
+const collaborationRequest = {
+  "participants": [
+    "external-sentiment-agent",
+    "external-fundamental-agent", 
+    "zergtrader-technical-agent"
+  ],
+  "task": {
+    "type": "consensus-analysis",
+    "symbol": "AAPL",
+    "data": marketData
+  }
+}
+
+// Fusion result combines all agent signals
+{
+  "consensus": {
+    "action": "BUY",
+    "confidence": 0.78,
+    "participantCount": 3,
+    "agreement": 0.89
+  },
+  "participants": [
+    { "agent": "sentiment", "signal": "BUY", "confidence": 0.85 },
+    { "agent": "fundamental", "signal": "BUY", "confidence": 0.72 },
+    { "agent": "technical", "signal": "BUY", "confidence": 0.78 }
+  ]
+}
+```
+
+#### **Real-time Data Sharing**
+```javascript
+// External agents can subscribe to ZergTrader's market data
+const subscriptionRequest = {
+  "jsonrpc": "2.0",
+  "method": "subscribeToMarketData",
+  "params": {
+    "symbols": ["AAPL", "MSFT"],
+    "dataTypes": ["price", "volume", "technical-indicators"],
+    "frequency": "1min"
+  }
+}
+```
+
+### 🔒 A2A Security & Authentication
+
+```bash
+# Optional authentication for A2A network
+A2A_AUTH_ENABLED=true
+A2A_API_KEY=your-network-key
+A2A_TRUSTED_AGENTS=agent1.example.com,agent2.example.com
+```
+
+### 📊 A2A Performance Monitoring
+
+Monitor A2A network performance:
+
+```bash
+# Get A2A network status
+curl http://localhost:3000/a2a/status
+
+# Response
+{
+  "status": "connected",
+  "connectedAgents": 5,
+  "messagesSent": 1247,
+  "messagesReceived": 892,
+  "networkLatency": 23,
+  "lastDiscovery": "2024-01-01T12:00:00Z"
+}
+```
+
+### 🚀 A2A Integration Examples
+
+#### **External Agent Integration**
+```typescript
+// External agent connecting to ZergTrader
+import { A2AClient } from '@a2a-js/sdk';
+
+const client = new A2AClient('http://zergtrader-host:3001');
+
+// Request technical analysis
+const result = await client.call('analyze', {
+  symbol: 'AAPL',
+  marketData: latestData,
+  indicators: ['SMA', 'RSI', 'MACD']
+});
+
+console.log('ZergTrader Analysis:', result.signals);
+```
+
+#### **ZergTrader as A2A Client**
+```typescript
+// ZergTrader requesting external sentiment analysis
+const sentimentAgent = await a2aService.discoverAgent('sentiment-analysis');
+const sentimentSignal = await a2aService.sendMessage(
+  sentimentAgent.endpoint,
+  'analyzeSentiment', 
+  { symbol: 'AAPL', newsData: recentNews }
+);
+```
+
+### 🎯 A2A Use Cases
+
+1. **Multi-Platform Trading Networks**: Connect ZergTrader with external institutional agents
+2. **Sentiment Analysis Integration**: Combine technical analysis with external news sentiment
+3. **Alternative Data Sources**: Access proprietary indicators from specialized agents  
+4. **Risk Management Collaboration**: Share risk assessments across trading platforms
+5. **Strategy Validation**: Cross-validate signals with external quantitative agents
+6. **Distributed Backtesting**: Coordinate large-scale backtesting across multiple systems
+
+The A2A protocol transforms ZergTrader from a standalone system into a node in a collaborative trading intelligence network.
 
 ## 📊 Performance Metrics
 
