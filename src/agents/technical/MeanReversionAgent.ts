@@ -326,14 +326,14 @@ export class MeanReversionAgent extends BaseAgent {
     const threshold = 0.2;
     if (Math.abs(netScore) < threshold) return null;
 
-    const action = netScore > 0 ? 'BUY' : 'SELL';
+    const action: 'BUY' | 'SELL' = netScore > 0 ? 'BUY' : 'SELL';
     const confidence = Math.min(0.85, Math.abs(netScore) / totalScore * 2 + 0.2);
     const strength = confidence * 0.8; // Mean reversion signals are inherently riskier
 
     const supportingSignals = action === 'BUY' ? buySignals : sellSignals;
     const reasoning = `Composite mean reversion signal based on ${supportingSignals.length} supporting indicators: ${supportingSignals.map(s => s.metadata?.indicator).join(', ')}`;
 
-    return {
+    const baseSignal: Signal = {
       id: uuidv4(),
       agent_id: this.config.id,
       symbol,
@@ -351,6 +351,113 @@ export class MeanReversionAgent extends BaseAgent {
         signal_type: 'COMPOSITE_MEAN_REVERSION'
       }
     };
+
+    // Apply risk-adjusted confidence scoring for mean reversion
+    const marketData = this.dataBuffer.get(symbol);
+    if (marketData && marketData.length > 0) {
+      return this.applyMeanReversionRiskAdjustment(baseSignal, marketData);
+    }
+
+    return baseSignal;
+  }
+
+  private applyMeanReversionRiskAdjustment(signal: Signal, marketData: MarketData[]): Signal {
+    if (marketData.length < 20) return signal;
+
+    const recent = marketData.slice(-20);
+    const currentPrice = recent[recent.length - 1].close;
+    
+    // Calculate volatility (ATR approximation)
+    let atrSum = 0;
+    for (let i = 1; i < recent.length; i++) {
+      const tr = Math.max(
+        recent[i].high - recent[i].low,
+        Math.abs(recent[i].high - recent[i - 1].close),
+        Math.abs(recent[i].low - recent[i - 1].close)
+      );
+      atrSum += tr;
+    }
+    const atr = atrSum / (recent.length - 1);
+    const atrPercent = atr / currentPrice;
+
+    // Calculate trend strength (counter-trend risk for mean reversion)
+    const trendPeriods = [5, 10, 20];
+    let strongTrendCount = 0;
+    
+    for (const period of trendPeriods) {
+      if (recent.length >= period) {
+        const periodData = recent.slice(-period);
+        const startPrice = periodData[0].close;
+        const endPrice = periodData[periodData.length - 1].close;
+        const trendStrength = Math.abs((endPrice - startPrice) / startPrice);
+        
+        // Strong trend reduces mean reversion confidence
+        if (trendStrength > 0.05) { // 5% movement in trend direction
+          strongTrendCount++;
+        }
+      }
+    }
+
+    // Calculate volume confirmation
+    const avgVolume = recent.reduce((sum, d) => sum + d.volume, 0) / recent.length;
+    const recentVolume = recent.slice(-3).reduce((sum, d) => sum + d.volume, 0) / 3;
+    const volumeRatio = recentVolume / avgVolume;
+
+    // Mean reversion specific risk adjustments
+    let riskAdjustment = 1.0;
+
+    // High volatility increases mean reversion opportunity but also risk
+    if (atrPercent > 0.06) { // Very high volatility
+      riskAdjustment *= 0.7; // Reduce confidence due to unpredictability
+    } else if (atrPercent > 0.04) { // High volatility
+      riskAdjustment *= 0.85;
+    } else if (atrPercent < 0.01) { // Very low volatility
+      riskAdjustment *= 0.8; // Reduce confidence - less likely to revert quickly
+    }
+
+    // Strong trends reduce mean reversion confidence significantly
+    if (strongTrendCount >= 2) {
+      riskAdjustment *= 0.6; // Strong trend across multiple timeframes
+    } else if (strongTrendCount === 1) {
+      riskAdjustment *= 0.8;
+    }
+
+    // Low volume reduces mean reversion reliability
+    if (volumeRatio < 0.7) {
+      riskAdjustment *= 0.8; // Low volume might not support reversal
+    } else if (volumeRatio > 2.0) {
+      riskAdjustment *= 1.1; // High volume supports potential reversal
+    }
+
+    // Position sizing for mean reversion (typically smaller due to counter-trend nature)
+    let positionSize = 'SMALL'; // Default for mean reversion
+    if (atrPercent < 0.02 && strongTrendCount === 0) {
+      positionSize = 'NORMAL';
+    } else if (atrPercent > 0.05 || strongTrendCount >= 2) {
+      positionSize = 'MICRO';
+    }
+
+    const adjustedConfidence = Math.max(0.1, signal.confidence * riskAdjustment);
+    const adjustedStrength = Math.max(0.1, signal.strength * riskAdjustment);
+
+    return {
+      ...signal,
+      confidence: adjustedConfidence,
+      strength: adjustedStrength,
+      reasoning: `${signal.reasoning} (Mean reversion risk-adjusted: volatility=${(atrPercent * 100).toFixed(1)}%, trend strength=${strongTrendCount}/3)`,
+      metadata: {
+        ...signal.metadata,
+        riskAdjustment: {
+          originalConfidence: signal.confidence,
+          volatility: atrPercent,
+          strongTrendCount,
+          volumeRatio,
+          positionSize,
+          adjustmentFactor: riskAdjustment,
+          analysisType: 'MEAN_REVERSION'
+        }
+      }
+    };
   }
 
   private updateMarketData(symbol: string, data: MarketData[]): void {
@@ -364,7 +471,11 @@ export class MeanReversionAgent extends BaseAgent {
       'bollinger-bands',
       'rsi-analysis',
       'statistical-arbitrage',
-      'overbought-oversold-detection'
+      'overbought-oversold-detection',
+      'risk-adjusted-mean-reversion',
+      'trend-strength-analysis',
+      'counter-trend-risk-management',
+      'volatility-based-position-sizing'
     ];
   }
 

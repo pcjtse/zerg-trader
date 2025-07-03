@@ -131,7 +131,7 @@ export class TrendFollowingAgent extends BaseAgent {
     if (!this.tradingViewService) return;
 
     const resolution = this.config.parameters.resolution || '1D';
-    const indicators = ['SMA', 'EMA', 'RSI', 'MACD'];
+    const indicators = ['SMA', 'EMA', 'RSI', 'MACD', 'STOCH', 'ADX', 'ATR', 'WILLR', 'CCI'];
 
     try {
       for (const indicator of indicators) {
@@ -348,12 +348,22 @@ export class TrendFollowingAgent extends BaseAgent {
     const emaSignal = this.analyzeEMASignal(symbol, indicators);
     const macdSignal = this.analyzeMACDSignal(symbol, indicators);
     const momentumSignal = this.analyzeMomentumSignal(symbol, marketData);
+    
+    // Analyze advanced indicators
+    const stochasticSignal = this.analyzeStochasticSignal(symbol, indicators);
+    const adxSignal = this.analyzeADXSignal(symbol, indicators);
+    const williamsSignal = this.analyzeWilliamsSignal(symbol, indicators);
+    const cciSignal = this.analyzeCCISignal(symbol, indicators);
 
     // Combine signals
     if (smaSignal) signals.push(smaSignal);
     if (emaSignal) signals.push(emaSignal);
     if (macdSignal) signals.push(macdSignal);
     if (momentumSignal) signals.push(momentumSignal);
+    if (stochasticSignal) signals.push(stochasticSignal);
+    if (adxSignal) signals.push(adxSignal);
+    if (williamsSignal) signals.push(williamsSignal);
+    if (cciSignal) signals.push(cciSignal);
 
     return signals;
   }
@@ -674,14 +684,14 @@ export class TrendFollowingAgent extends BaseAgent {
       return null;
     }
 
-    const action = netScore > 0 ? 'BUY' : 'SELL';
+    const action: 'BUY' | 'SELL' = netScore > 0 ? 'BUY' : 'SELL';
     const confidence = Math.min(0.9, Math.abs(netScore) / totalScore * 2);
     const strength = confidence * 0.95;
 
     const supportingSignals = action === 'BUY' ? buySignals : sellSignals;
     const reasoning = `Composite trend signal based on ${supportingSignals.length} supporting indicators: ${supportingSignals.map(s => s.metadata?.indicator).join(', ')}`;
 
-    return {
+    const baseSignal: Signal = {
       id: uuidv4(),
       agent_id: this.config.id,
       symbol,
@@ -698,6 +708,346 @@ export class TrendFollowingAgent extends BaseAgent {
         indicator: 'COMPOSITE_TREND'
       }
     };
+
+    // Apply risk-adjusted confidence scoring
+    const marketData = this.dataBuffer.get(symbol);
+    if (marketData && marketData.length > 0) {
+      return this.applyRiskAdjustment(baseSignal, marketData);
+    }
+
+    return baseSignal;
+  }
+
+  private analyzeStochasticSignal(symbol: string, indicators: TechnicalIndicator[]): Signal | null {
+    const stochK = indicators.filter(i => i.name === 'STOCH_K').slice(-1)[0];
+    const stochD = indicators.filter(i => i.name === 'STOCH_D').slice(-1)[0];
+
+    if (!stochK || !stochD) return null;
+
+    const oversoldThreshold = this.config.parameters.stochOversold || 20;
+    const overboughtThreshold = this.config.parameters.stochOverbought || 80;
+
+    let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    let confidence = 0;
+    let reasoning = '';
+
+    // Stochastic crossover signals
+    if (stochK.value > stochD.value && stochK.value < oversoldThreshold) {
+      action = 'BUY';
+      confidence = 0.7;
+      reasoning = `Stochastic oversold bullish crossover (K=${stochK.value.toFixed(2)}, D=${stochD.value.toFixed(2)})`;
+    } else if (stochK.value < stochD.value && stochK.value > overboughtThreshold) {
+      action = 'SELL';
+      confidence = 0.7;
+      reasoning = `Stochastic overbought bearish crossover (K=${stochK.value.toFixed(2)}, D=${stochD.value.toFixed(2)})`;
+    } else if (stochK.value <= oversoldThreshold && stochD.value <= oversoldThreshold) {
+      action = 'BUY';
+      confidence = 0.5;
+      reasoning = `Stochastic oversold condition (K=${stochK.value.toFixed(2)}, D=${stochD.value.toFixed(2)})`;
+    } else if (stochK.value >= overboughtThreshold && stochD.value >= overboughtThreshold) {
+      action = 'SELL';
+      confidence = 0.5;
+      reasoning = `Stochastic overbought condition (K=${stochK.value.toFixed(2)}, D=${stochD.value.toFixed(2)})`;
+    }
+
+    if (action === 'HOLD') return null;
+
+    return {
+      id: uuidv4(),
+      agent_id: this.config.id,
+      symbol,
+      action,
+      confidence,
+      strength: confidence * 0.8,
+      timestamp: new Date(),
+      reasoning,
+      metadata: {
+        stochK: stochK.value,
+        stochD: stochD.value,
+        oversoldThreshold,
+        overboughtThreshold,
+        indicator: 'STOCHASTIC'
+      }
+    };
+  }
+
+  private analyzeADXSignal(symbol: string, indicators: TechnicalIndicator[]): Signal | null {
+    const adx = indicators.filter(i => i.name === 'ADX').slice(-1)[0];
+    const plusDI = indicators.filter(i => i.name === 'PLUS_DI').slice(-1)[0];
+    const minusDI = indicators.filter(i => i.name === 'MINUS_DI').slice(-1)[0];
+
+    if (!adx) return null;
+
+    const strongTrendThreshold = this.config.parameters.adxStrong || 25;
+    const veryStrongTrendThreshold = this.config.parameters.adxVeryStrong || 40;
+
+    // ADX alone indicates trend strength, not direction
+    if (adx.value < strongTrendThreshold) {
+      return null; // Weak trend, no signal
+    }
+
+    let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    let confidence = 0;
+    let reasoning = '';
+
+    // Use +DI and -DI for direction if available
+    if (plusDI && minusDI) {
+      if (plusDI.value > minusDI.value && adx.value > strongTrendThreshold) {
+        action = 'BUY';
+        confidence = adx.value > veryStrongTrendThreshold ? 0.8 : 0.6;
+        reasoning = `Strong uptrend confirmed by ADX (${adx.value.toFixed(2)}) with +DI > -DI`;
+      } else if (minusDI.value > plusDI.value && adx.value > strongTrendThreshold) {
+        action = 'SELL';
+        confidence = adx.value > veryStrongTrendThreshold ? 0.8 : 0.6;
+        reasoning = `Strong downtrend confirmed by ADX (${adx.value.toFixed(2)}) with -DI > +DI`;
+      }
+    } else {
+      // Without directional indicators, use price action
+      const marketData = this.dataBuffer.get(symbol);
+      if (marketData && marketData.length >= 2) {
+        const current = marketData[marketData.length - 1];
+        const previous = marketData[marketData.length - 2];
+        const priceChange = (current.close - previous.close) / previous.close;
+
+        if (priceChange > 0 && adx.value > strongTrendThreshold) {
+          action = 'BUY';
+          confidence = adx.value > veryStrongTrendThreshold ? 0.7 : 0.5;
+          reasoning = `Strong trend confirmed by ADX (${adx.value.toFixed(2)}) with positive price momentum`;
+        } else if (priceChange < 0 && adx.value > strongTrendThreshold) {
+          action = 'SELL';
+          confidence = adx.value > veryStrongTrendThreshold ? 0.7 : 0.5;
+          reasoning = `Strong trend confirmed by ADX (${adx.value.toFixed(2)}) with negative price momentum`;
+        }
+      }
+    }
+
+    if (action === 'HOLD') return null;
+
+    return {
+      id: uuidv4(),
+      agent_id: this.config.id,
+      symbol,
+      action,
+      confidence,
+      strength: confidence * 0.85,
+      timestamp: new Date(),
+      reasoning,
+      metadata: {
+        adx: adx.value,
+        plusDI: plusDI?.value,
+        minusDI: minusDI?.value,
+        strongTrendThreshold,
+        indicator: 'ADX'
+      }
+    };
+  }
+
+  private analyzeWilliamsSignal(symbol: string, indicators: TechnicalIndicator[]): Signal | null {
+    const williams = indicators.filter(i => i.name === 'WILLR').slice(-1)[0];
+    if (!williams) return null;
+
+    const oversoldThreshold = this.config.parameters.williamsOversold || -80;
+    const overboughtThreshold = this.config.parameters.williamsOverbought || -20;
+
+    let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    let confidence = 0;
+    let reasoning = '';
+
+    if (williams.value <= oversoldThreshold) {
+      action = 'BUY';
+      confidence = Math.min(0.75, Math.abs(williams.value) / 100 + 0.4);
+      reasoning = `Williams %R oversold at ${williams.value.toFixed(2)}`;
+    } else if (williams.value >= overboughtThreshold) {
+      action = 'SELL';
+      confidence = Math.min(0.75, (100 + williams.value) / 100 + 0.4);
+      reasoning = `Williams %R overbought at ${williams.value.toFixed(2)}`;
+    }
+
+    if (action === 'HOLD') return null;
+
+    return {
+      id: uuidv4(),
+      agent_id: this.config.id,
+      symbol,
+      action,
+      confidence,
+      strength: confidence * 0.75,
+      timestamp: new Date(),
+      reasoning,
+      metadata: {
+        williams: williams.value,
+        oversoldThreshold,
+        overboughtThreshold,
+        indicator: 'WILLIAMS_R'
+      }
+    };
+  }
+
+  private analyzeCCISignal(symbol: string, indicators: TechnicalIndicator[]): Signal | null {
+    const cci = indicators.filter(i => i.name === 'CCI').slice(-1)[0];
+    if (!cci) return null;
+
+    const oversoldThreshold = this.config.parameters.cciOversold || -100;
+    const overboughtThreshold = this.config.parameters.cciOverbought || 100;
+    const extremeOversoldThreshold = this.config.parameters.cciExtremeOversold || -200;
+    const extremeOverboughtThreshold = this.config.parameters.cciExtremeOverbought || 200;
+
+    let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    let confidence = 0;
+    let reasoning = '';
+
+    if (cci.value <= extremeOversoldThreshold) {
+      action = 'BUY';
+      confidence = 0.8;
+      reasoning = `CCI extremely oversold at ${cci.value.toFixed(2)}`;
+    } else if (cci.value <= oversoldThreshold) {
+      action = 'BUY';
+      confidence = 0.6;
+      reasoning = `CCI oversold at ${cci.value.toFixed(2)}`;
+    } else if (cci.value >= extremeOverboughtThreshold) {
+      action = 'SELL';
+      confidence = 0.8;
+      reasoning = `CCI extremely overbought at ${cci.value.toFixed(2)}`;
+    } else if (cci.value >= overboughtThreshold) {
+      action = 'SELL';
+      confidence = 0.6;
+      reasoning = `CCI overbought at ${cci.value.toFixed(2)}`;
+    }
+
+    if (action === 'HOLD') return null;
+
+    return {
+      id: uuidv4(),
+      agent_id: this.config.id,
+      symbol,
+      action,
+      confidence,
+      strength: confidence * 0.75,
+      timestamp: new Date(),
+      reasoning,
+      metadata: {
+        cci: cci.value,
+        oversoldThreshold,
+        overboughtThreshold,
+        indicator: 'CCI'
+      }
+    };
+  }
+
+  private applyRiskAdjustment(signal: Signal, marketData: MarketData[]): Signal {
+    if (marketData.length < 20) return signal;
+
+    const recent = marketData.slice(-20);
+    const currentPrice = recent[recent.length - 1].close;
+    
+    // Calculate volatility (ATR approximation)
+    let atrSum = 0;
+    for (let i = 1; i < recent.length; i++) {
+      const tr = Math.max(
+        recent[i].high - recent[i].low,
+        Math.abs(recent[i].high - recent[i - 1].close),
+        Math.abs(recent[i].low - recent[i - 1].close)
+      );
+      atrSum += tr;
+    }
+    const atr = atrSum / (recent.length - 1);
+    const atrPercent = atr / currentPrice;
+
+    // Calculate price momentum
+    const priceChange = (currentPrice - recent[0].close) / recent[0].close;
+    
+    // Calculate volume profile
+    const avgVolume = recent.reduce((sum, d) => sum + d.volume, 0) / recent.length;
+    const recentVolume = recent.slice(-5).reduce((sum, d) => sum + d.volume, 0) / 5;
+    const volumeRatio = recentVolume / avgVolume;
+
+    // Risk-adjusted confidence scoring
+    let riskAdjustment = 1.0;
+
+    // High volatility reduces confidence
+    if (atrPercent > 0.05) { // > 5% daily volatility
+      riskAdjustment *= 0.8;
+    } else if (atrPercent > 0.03) { // > 3% daily volatility
+      riskAdjustment *= 0.9;
+    }
+
+    // Strong momentum in opposite direction reduces confidence
+    if (signal.action === 'BUY' && priceChange < -0.1) {
+      riskAdjustment *= 0.7;
+    } else if (signal.action === 'SELL' && priceChange > 0.1) {
+      riskAdjustment *= 0.7;
+    }
+
+    // Low volume reduces confidence
+    if (volumeRatio < 0.5) {
+      riskAdjustment *= 0.8;
+    }
+
+    // Position sizing suggestion based on volatility
+    let positionSize = 'NORMAL';
+    if (atrPercent > 0.05) {
+      positionSize = 'SMALL';
+    } else if (atrPercent < 0.02) {
+      positionSize = 'LARGE';
+    }
+
+    const adjustedConfidence = Math.max(0.1, signal.confidence * riskAdjustment);
+    const adjustedStrength = Math.max(0.1, signal.strength * riskAdjustment);
+
+    return {
+      ...signal,
+      confidence: adjustedConfidence,
+      strength: adjustedStrength,
+      reasoning: `${signal.reasoning} (Risk-adjusted: volatility=${(atrPercent * 100).toFixed(1)}%, momentum=${(priceChange * 100).toFixed(1)}%)`,
+      metadata: {
+        ...signal.metadata,
+        riskAdjustment: {
+          originalConfidence: signal.confidence,
+          volatility: atrPercent,
+          momentum: priceChange,
+          volumeRatio,
+          positionSize,
+          adjustmentFactor: riskAdjustment
+        }
+      }
+    };
+  }
+
+  private calculateOptimalPositionSize(signal: Signal, marketData: MarketData[], accountBalance: number = 100000): number {
+    if (marketData.length < 20) return 0.02; // 2% default
+
+    const recent = marketData.slice(-20);
+    const currentPrice = recent[recent.length - 1].close;
+    
+    // Calculate ATR for risk assessment
+    let atrSum = 0;
+    for (let i = 1; i < recent.length; i++) {
+      const tr = Math.max(
+        recent[i].high - recent[i].low,
+        Math.abs(recent[i].high - recent[i - 1].close),
+        Math.abs(recent[i].low - recent[i - 1].close)
+      );
+      atrSum += tr;
+    }
+    const atr = atrSum / (recent.length - 1);
+    
+    // Risk per trade (1% of account)
+    const riskPerTrade = accountBalance * 0.01;
+    
+    // Stop loss distance (2 * ATR)
+    const stopLossDistance = atr * 2;
+    
+    // Position size calculation
+    const dollarAmount = riskPerTrade / stopLossDistance;
+    const shares = Math.floor(dollarAmount / currentPrice);
+    const positionValue = shares * currentPrice;
+    const positionSizePercent = positionValue / accountBalance;
+    
+    // Apply confidence-based adjustment
+    const confidenceAdjustedSize = positionSizePercent * signal.confidence;
+    
+    // Cap position size
+    return Math.min(0.1, Math.max(0.005, confidenceAdjustedSize)); // Between 0.5% and 10%
   }
 
   private updateMarketData(symbol: string, data: MarketData[]): void {
@@ -722,6 +1072,13 @@ export class TrendFollowingAgent extends BaseAgent {
       'ema-analysis',
       'macd-analysis',
       'momentum-analysis',
+      'stochastic-analysis',
+      'adx-analysis',
+      'williams-r-analysis',
+      'cci-analysis',
+      'risk-adjusted-signals',
+      'position-sizing',
+      'volatility-analysis',
       'composite-signals',
       'real-time-analysis',
       'claude-enhanced-analysis',
@@ -734,7 +1091,7 @@ export class TrendFollowingAgent extends BaseAgent {
     return [
       {
         name: 'analyze',
-        description: 'Perform comprehensive trend following analysis',
+        description: 'Perform comprehensive trend following analysis with advanced indicators',
         parameters: {
           symbol: 'string',
           marketData: 'MarketData[]',
@@ -744,13 +1101,68 @@ export class TrendFollowingAgent extends BaseAgent {
       },
       {
         name: 'getTechnicalSignals',
-        description: 'Get traditional technical analysis signals',
+        description: 'Get traditional and advanced technical analysis signals',
         parameters: {
           symbol: 'string',
           marketData: 'MarketData[]',
           indicators: 'TechnicalIndicator[]'
         },
         returns: { signals: 'Signal[]' }
+      },
+      {
+        name: 'analyzeStochasticSignal',
+        description: 'Analyze Stochastic oscillator for momentum signals',
+        parameters: {
+          symbol: 'string',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signal: 'Signal' }
+      },
+      {
+        name: 'analyzeADXSignal',
+        description: 'Analyze ADX for trend strength confirmation',
+        parameters: {
+          symbol: 'string',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signal: 'Signal' }
+      },
+      {
+        name: 'analyzeWilliamsSignal',
+        description: 'Analyze Williams %R for overbought/oversold conditions',
+        parameters: {
+          symbol: 'string',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signal: 'Signal' }
+      },
+      {
+        name: 'analyzeCCISignal',
+        description: 'Analyze Commodity Channel Index for cyclical turns',
+        parameters: {
+          symbol: 'string',
+          indicators: 'TechnicalIndicator[]'
+        },
+        returns: { signal: 'Signal' }
+      },
+      {
+        name: 'applyRiskAdjustment',
+        description: 'Apply risk-based adjustments to signal confidence',
+        parameters: {
+          signal: 'Signal',
+          marketData: 'MarketData[]'
+        },
+        returns: { signal: 'Signal' }
+      },
+      {
+        name: 'calculateOptimalPositionSize',
+        description: 'Calculate optimal position size based on risk and volatility',
+        parameters: {
+          signal: 'Signal',
+          marketData: 'MarketData[]',
+          accountBalance: 'number'
+        },
+        returns: { positionSize: 'number' }
       },
       {
         name: 'analyzeWithClaude',
