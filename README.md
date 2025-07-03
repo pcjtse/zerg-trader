@@ -32,6 +32,7 @@ cp .env.example .env
 Required API keys:
 - `ANTHROPIC_API_KEY` - For AI analysis (optional but recommended)
 - `ALPHA_VANTAGE_API_KEY` - For market data
+- `NEWS_API_KEY` - For news sentiment analysis (optional)
 - `TRADINGVIEW_API_KEY` - For professional data (optional)
 
 ### Start Trading
@@ -58,6 +59,13 @@ Open `http://localhost:3000` for the web interface.
 - **Volume Confirmation**: High-volume reversal pattern detection
 - **Trend Strength Assessment**: Multi-timeframe risk evaluation
 
+### Sentiment Analysis Agent 🆕
+- **Multi-Source Data**: TechCrunch, The Verge Decoder, Reddit (WallStreetBets, investing, stocks)
+- **AI-Enhanced Analysis**: Claude AI sentiment interpretation with keyword extraction
+- **Real-time Monitoring**: Automatic sentiment tracking every 2 hours
+- **Social Media Intelligence**: Reddit post scoring, comment analysis, trending symbols
+- **News Aggregation**: RSS feeds + NewsAPI integration for comprehensive coverage
+
 ### Decision Fusion Agent
 - **Signal Aggregation**: Weighted fusion of multiple agent signals
 - **Performance-Based Weighting**: Dynamic agent weight adjustment
@@ -82,6 +90,20 @@ curl http://localhost:3000/agents/trend-agent/memory/stats
 ### Risk Monitoring
 ```bash
 curl http://localhost:3000/risk/metrics
+```
+
+### Sentiment Analysis
+```bash
+# Get sentiment for specific symbols
+curl http://localhost:3000/sentiment/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"symbols": ["AAPL", "TSLA"], "days": 7}'
+
+# Get trending symbols from Reddit
+curl http://localhost:3000/sentiment/trending
+
+# Get sentiment breakdown by source
+curl http://localhost:3000/sentiment/AAPL/sources
 ```
 
 ## 🧪 Testing
@@ -132,6 +154,15 @@ curl -X POST http://localhost:3000/backtests \
   "rsi_overbought": 70,
   "stoch_oversold": 20,
   "adx_strong": 25
+}
+
+// Sentiment Analysis Agent
+{
+  "symbols": ["AAPL", "TSLA", "MSFT"],
+  "sentimentThreshold": 0.3,
+  "updateInterval": 7200000,  // 2 hours
+  "sources": ["techcrunch", "decoder", "reddit"],
+  "subreddits": ["wallstreetbets", "investing", "stocks"]
 }
 ```
 

@@ -433,6 +433,21 @@ export class MemoryService extends EventEmitter {
     };
   }
 
+  public async storeSentimentContext(
+    agentId: string,
+    context: any,
+    importance: number = 0.7
+  ): Promise<string> {
+    return this.storeMemory({
+      agentId,
+      type: MemoryType.MARKET_CONTEXT,
+      content: context,
+      importance,
+      tags: ['sentiment', context.symbol, context.timeframe, 'analysis'],
+      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+    });
+  }
+
   public async clearMemories(agentId?: string): Promise<void> {
     if (agentId) {
       const memoryIds = this.agentMemories.get(agentId) || new Set();

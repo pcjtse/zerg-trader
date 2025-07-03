@@ -93,7 +93,7 @@ export interface Trade {
 export interface AgentConfig {
   id: string;
   name: string;
-  type: 'TECHNICAL' | 'FUNDAMENTAL' | 'FUSION' | 'RISK' | 'PORTFOLIO' | 'EXECUTION';
+  type: 'TECHNICAL' | 'FUNDAMENTAL' | 'FUSION' | 'RISK' | 'PORTFOLIO' | 'EXECUTION' | 'SENTIMENT';
   enabled: boolean;
   parameters: Record<string, any>;
   weight: number; // Used in fusion agent

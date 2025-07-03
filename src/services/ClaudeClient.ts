@@ -3,7 +3,7 @@ import { Signal, MarketData, TechnicalIndicator, FundamentalData, NewsData } fro
 import { MemoryService } from './MemoryService';
 
 export interface ClaudeAnalysisRequest {
-  type: 'technical' | 'fundamental' | 'news' | 'fusion';
+  type: 'technical' | 'fundamental' | 'news' | 'fusion' | 'sentiment';
   data: MarketData[] | TechnicalIndicator[] | FundamentalData[] | NewsData[] | Signal[];
   context?: string;
   symbol?: string;
