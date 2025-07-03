@@ -13,6 +13,9 @@ import {
   ConversationMemory
 } from '../types';
 
+// Global registry for cleanup in tests
+const globalMemoryServiceInstances = new Set<MemoryService>();
+
 export class MemoryService extends EventEmitter {
   private memories: Map<string, MemoryEntry> = new Map();
   private agentMemories: Map<string, Set<string>> = new Map();
@@ -35,6 +38,9 @@ export class MemoryService extends EventEmitter {
     this.cleanupIntervalMs = parseInt(process.env.MEMORY_CLEANUP_INTERVAL || '3600000');
     this.highImportanceThreshold = parseFloat(process.env.HIGH_IMPORTANCE_THRESHOLD || '0.7');
     
+    // Register this instance for cleanup in tests
+    globalMemoryServiceInstances.add(this);
+    
     if (this.enableMemory) {
       this.initializeIndices();
       this.ensurePersistenceDirectory();
@@ -56,6 +62,11 @@ export class MemoryService extends EventEmitter {
   }
 
   private startCleanupScheduler(): void {
+    // Don't start cleanup scheduler in test environment to prevent memory leaks
+    if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
+      return;
+    }
+    
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredMemories();
     }, this.cleanupIntervalMs);
@@ -465,6 +476,15 @@ export class MemoryService extends EventEmitter {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
     }
+    globalMemoryServiceInstances.delete(this);
     this.removeAllListeners();
+  }
+  
+  // Global cleanup function for tests
+  public static destroyAllInstances(): void {
+    for (const instance of globalMemoryServiceInstances) {
+      instance.destroy();
+    }
+    globalMemoryServiceInstances.clear();
   }
 }

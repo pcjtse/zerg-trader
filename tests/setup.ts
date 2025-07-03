@@ -29,6 +29,16 @@ afterAll(() => {
     // Ignore errors during cleanup
   }
   
+  // Clean up all MemoryService instances
+  try {
+    const { MemoryService } = require('../src/services/MemoryService');
+    if (MemoryService && typeof MemoryService.destroyAllInstances === 'function') {
+      MemoryService.destroyAllInstances();
+    }
+  } catch (error) {
+    // Ignore errors during cleanup
+  }
+  
   // Clear all timers
   jest.clearAllTimers();
   
