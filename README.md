@@ -471,8 +471,15 @@ ws.on('message', (data) => {
 - **Automated Stops**: Emergency stop functionality
 - **API Security**: Environment variable protection
 
-### Disclaimer
-⚠️ **Trading involves substantial risk of loss. Past performance does not guarantee future results. Use at your own risk.**
+### ⚠️ CRITICAL DISCLAIMER - READ BEFORE USE ⚠️
+
+**THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL AND RESEARCH PURPOSES ONLY. THE AUTHOR DISCLAIMS ALL LIABILITY AND RESPONSIBILITY FOR ANY FINANCIAL LOSSES, DAMAGES, OR CONSEQUENCES ARISING FROM THE USE OF THIS SOFTWARE.**
+
+🚨 **FINANCIAL RISK WARNING** 🚨
+- **YOU CAN LOSE ALL YOUR MONEY** - Trading and investing involve substantial risk of financial loss
+- **NO GUARANTEES** - Past performance does not guarantee future results
+- **EXPERIMENTAL SOFTWARE** - This is beta software that may contain bugs, errors, or unexpected behavior
+- **NOT FINANCIAL ADVICE** - Nothing in this software constitutes investment advice or recommendations
 
 ## 🔧 Development
 
@@ -512,9 +519,61 @@ src/
 
 MIT License - see LICENSE file for details.
 
-## ⚠️ Important Warning
+## ⚠️ COMPREHENSIVE LEGAL DISCLAIMER AND LIABILITY WAIVER
 
-**This software is for educational purposes only. Trading involves substantial risk of loss. Never trade with money you cannot afford to lose. Always test thoroughly with paper trading before using real money.**
+### 🚨 ABSOLUTE DISCLAIMER OF LIABILITY 🚨
+
+**BY USING THIS SOFTWARE, YOU ACKNOWLEDGE AND AGREE TO THE FOLLOWING:**
+
+#### **COMPLETE DISCLAIMER OF RESPONSIBILITY**
+- **THE AUTHOR(S) AND CONTRIBUTORS BEAR ZERO RESPONSIBILITY** for any financial losses, damages, or consequences resulting from use of this software
+- **NO LIABILITY WHATSOEVER** - The author disclaims all liability whether direct, indirect, incidental, special, consequential, or punitive
+- **USE AT YOUR SOLE RISK** - You assume full responsibility for all trading decisions and their outcomes
+
+#### **FINANCIAL RISK ACKNOWLEDGMENT**
+- **TOTAL LOSS POSSIBLE** - You may lose 100% of your invested capital
+- **LEVERAGED TRADING RISKS** - Algorithmic trading can amplify losses exponentially
+- **MARKET VOLATILITY** - Financial markets are unpredictable and can move against you rapidly
+- **SYSTEM FAILURES** - Technical failures may result in unintended trades or missed opportunities
+
+#### **SOFTWARE LIMITATIONS**
+- **BETA SOFTWARE** - This is experimental software with potential bugs and errors
+- **NO WARRANTIES** - Provided "AS IS" without any warranties of any kind
+- **AI LIMITATIONS** - Claude AI and sentiment analysis may produce inaccurate results
+- **DATA DEPENDENCY** - Software relies on third-party data that may be delayed, incorrect, or unavailable
+
+#### **REGULATORY AND LEGAL COMPLIANCE**
+- **YOUR RESPONSIBILITY** - You are solely responsible for compliance with all applicable laws and regulations
+- **LICENSING REQUIREMENTS** - Algorithmic trading may require regulatory licenses in your jurisdiction
+- **TAX OBLIGATIONS** - You are responsible for all tax implications of your trading activities
+- **JURISDICTION RESTRICTIONS** - This software may not be legal in all jurisdictions
+
+#### **MANDATORY REQUIREMENTS BEFORE USE**
+1. **PAPER TRADING ONLY** - Test extensively with simulated trading before risking real money
+2. **PROFESSIONAL CONSULTATION** - Consult with licensed financial advisors and legal counsel
+3. **RISK ASSESSMENT** - Only trade with money you can afford to lose completely
+4. **UNDERSTANDING** - Fully understand the software's limitations and your local regulations
+5. **CONTINUOUS MONITORING** - Actively monitor the system during operation
+
+#### **NO INVESTMENT ADVICE**
+- **EDUCATIONAL ONLY** - This software is for educational and research purposes exclusively
+- **NOT FINANCIAL ADVICE** - Nothing herein constitutes investment, financial, legal, or tax advice
+- **NO RECOMMENDATIONS** - No buy, sell, or hold recommendations are provided
+- **INDEPENDENT DECISIONS** - All trading decisions must be your own independent choices
+
+### 📋 LIABILITY WAIVER
+
+**I HEREBY WAIVE, RELEASE, AND DISCHARGE** the author(s) and contributors from any and all claims, demands, actions, causes of action, damages, losses, costs, and expenses of any nature whatsoever arising out of or in any way connected with my use of this software.
+
+### ⚖️ LEGAL ENFORCEABILITY
+
+This disclaimer shall be governed by applicable law. If any provision is deemed unenforceable, the remaining provisions shall remain in full force and effect.
+
+**IF YOU DO NOT AGREE TO THESE TERMS, DO NOT USE THIS SOFTWARE.**
+
+---
+
+**REMEMBER: The most sophisticated trading system is worthless if it causes you to lose money you cannot afford to lose. Trade responsibly.**
 
 ---
 
