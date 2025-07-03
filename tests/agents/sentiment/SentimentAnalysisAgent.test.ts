@@ -166,8 +166,8 @@ describe('SentimentAnalysisAgent', () => {
       const mockSentimentData = [
         {
           source: 'techcrunch' as const,
-          title: 'Apple Releases Quarterly Update',
-          content: 'Apple released its quarterly update with mixed results. Some areas showed growth while others declined.',
+          title: 'Apple Releases Quarterly Report',
+          content: 'Apple released its quarterly report with standard metrics. Various areas maintained previous levels.',
           url: 'https://techcrunch.com/neutral-article',
           publishedAt: new Date(),
           author: 'Reporter',
@@ -199,8 +199,8 @@ describe('SentimentAnalysisAgent', () => {
 
       const mockMSFTData = [{
         source: 'techcrunch' as const,
-        title: 'Microsoft cloud growth slows',
-        content: 'Microsoft reported slower than expected cloud growth raising concerns',
+        title: 'Microsoft faces major decline, stock tumbles',
+        content: 'Microsoft reported disappointing earnings with weak cloud growth. Concerns about significant decline and bearish outlook.',
         url: 'https://techcrunch.com/msft',
         publishedAt: new Date(),
         author: 'reporter',

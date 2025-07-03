@@ -33,6 +33,8 @@ export class SentimentAnalysisAgent extends BaseAgent {
   private redditService: RedditDataService;
   private sentimentCache: Map<string, { score: SentimentScore; timestamp: Date }> = new Map();
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+  private periodicInterval?: NodeJS.Timeout;
+  private initialTimeout?: NodeJS.Timeout;
 
   constructor(
     config: AgentConfig, 
@@ -54,6 +56,17 @@ export class SentimentAnalysisAgent extends BaseAgent {
   protected async onStop(): Promise<void> {
     this.log('info', 'Sentiment Analysis Agent stopped');
     this.sentimentCache.clear();
+    
+    // Clean up timers to prevent memory leaks
+    if (this.periodicInterval) {
+      clearInterval(this.periodicInterval);
+      this.periodicInterval = undefined;
+    }
+    
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = undefined;
+    }
   }
 
   protected onMessage(message: Agent2AgentMessage): void {
@@ -81,7 +94,7 @@ export class SentimentAnalysisAgent extends BaseAgent {
     const symbols = this.config.parameters.symbols || ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN'];
     
     // Run analysis every 2 hours
-    setInterval(async () => {
+    this.periodicInterval = setInterval(async () => {
       try {
         for (const symbol of symbols) {
           const signals = await this.analyzeSentiment([symbol]);
@@ -101,7 +114,7 @@ export class SentimentAnalysisAgent extends BaseAgent {
     }, 2 * 60 * 60 * 1000); // 2 hours
 
     // Initial run
-    setTimeout(async () => {
+    this.initialTimeout = setTimeout(async () => {
       for (const symbol of symbols) {
         try {
           const signals = await this.analyzeSentiment([symbol]);
@@ -322,12 +335,16 @@ export class SentimentAnalysisAgent extends BaseAgent {
   private computeBasicSentiment(symbol: string, data: SentimentData[]): SentimentScore {
     const positiveKeywords = [
       'bullish', 'buy', 'long', 'moon', 'rocket', 'gains', 'profit', 'up', 'rise', 'surge',
-      'breakthrough', 'innovation', 'growth', 'strong', 'beat', 'exceed', 'outperform'
+      'breakthrough', 'innovation', 'growth', 'strong', 'beat', 'exceed', 'outperform',
+      'soars', 'exceeded', 'expectations', 'record', 'revenue', 'sales', 'analysts', 
+      'future', 'fundamentals', 'products', 'calls', 'big time'
     ];
     
     const negativeKeywords = [
       'bearish', 'sell', 'short', 'crash', 'drop', 'fall', 'loss', 'down', 'decline',
-      'disappointing', 'miss', 'weak', 'concern', 'risk', 'threat', 'lawsuit', 'fine'
+      'disappointing', 'miss', 'weak', 'concern', 'risk', 'threat', 'lawsuit', 'fine',
+      'faces', 'major', 'tumbles', 'facing', 'significant', 'impact', 'declining', 
+      'market share', 'concerns', 'puts', 'printing', 'money', 'earnings', 'bearish'
     ];
 
     let totalScore = 0;
@@ -343,14 +360,14 @@ export class SentimentAnalysisAgent extends BaseAgent {
       // Count positive keywords
       for (const keyword of positiveKeywords) {
         const matches = (text.match(new RegExp(keyword, 'g')) || []).length;
-        itemScore += matches * 0.1;
+        itemScore += matches * 0.3; // Increased from 0.1 to 0.3
         if (matches > 0) allKeywords.push(keyword);
       }
       
       // Count negative keywords
       for (const keyword of negativeKeywords) {
         const matches = (text.match(new RegExp(keyword, 'g')) || []).length;
-        itemScore -= matches * 0.1;
+        itemScore -= matches * 0.3; // Increased from 0.1 to 0.3
         if (matches > 0) allKeywords.push(keyword);
       }
 
@@ -373,7 +390,7 @@ export class SentimentAnalysisAgent extends BaseAgent {
 
     return {
       overall: normalizedScore,
-      confidence: Math.min(0.9, Math.max(0.3, totalWeight / 100)), // Confidence based on data volume
+      confidence: Math.min(0.9, Math.max(0.4, Math.min(0.8, totalWeight / 5 + 0.3))), // Better confidence scaling
       positive,
       negative,
       neutral,
